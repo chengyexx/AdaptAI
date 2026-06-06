@@ -1,0 +1,6 @@
+请将以下章节文本切分为场景单元：
+
+{chapter_texts}
+
+已知角色列表（每个角色的 ID 和姓名）：
+{character_list}
