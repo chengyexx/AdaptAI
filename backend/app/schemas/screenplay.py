@@ -181,3 +181,72 @@ class Screenplay(BaseModel):
     scenes: list[Scene]
     adaptation_notes: list[AdaptationNote] = Field(default_factory=list)
     stats: Stats = Field(default_factory=Stats)
+
+
+# ═══════════════════════════════════════════════════════════════
+# Chunk Output — LLM 每块输出 YAML 的校验模型（升级版：含镜头/转场/情绪）
+# ═══════════════════════════════════════════════════════════════
+
+class ChunkDialogueLine(BaseModel):
+    """单条对白 — 匹配 LLM 输出"""
+    character_id: str = ""               # c1, c2（优先用 ID）
+    character: str = ""                  # 回退用角色名
+    emotion_or_action: str | None = None
+    line: str
+    type: Literal["NORMAL", "V.O.", "O.S."] = "NORMAL"
+
+
+class ChunkShotSuggestion(BaseModel):
+    """镜头建议 — 匹配 LLM 输出"""
+    type: str = "wide"                   # close-up, wide, medium, tracking, pan, pov...
+    description: str = ""
+    optional: bool = True
+
+
+class ChunkSceneHeading(BaseModel):
+    """场景标题"""
+    location: str
+    time_of_day: Literal["DAY", "NIGHT", "DAWN", "DUSK"] = "DAY"
+    setting_detail: str = ""
+
+
+class ChunkScene(BaseModel):
+    """单块输出的场景 — 升级版，匹配完整 Screenplay 字段"""
+    scene_id: str
+    chapter: int | str
+    heading: ChunkSceneHeading
+    characters_present: list[str] = Field(default_factory=list)
+    mood: str = ""                                         # 情绪基调
+    plot_actions: list[str] = Field(description="纯动作与视觉描写", default_factory=list)
+    dialogues: list[ChunkDialogueLine] = Field(default_factory=list)
+    shots: list[ChunkShotSuggestion] = Field(default_factory=list)  # 镜头建议
+    transition: str | None = None                          # CUT TO / FADE IN / ...
+
+
+class ScriptDocument(BaseModel):
+    """LLM 输出的完整文档模型 — 用于 Pydantic 校验"""
+    scenes: list[ChunkScene]
+
+
+# ═══════════════════════════════════════════════════════════════
+# Final Output — 最终交付的完整剧本模型
+# ═══════════════════════════════════════════════════════════════
+
+class FinalStats(BaseModel):
+    """剧本统计"""
+    scene_count: int = 0
+    character_count: int = 0
+    total_dialogue_blocks: int = 0
+    estimated_runtime_minutes: float = 0.0
+
+
+class FinalScreenplay(BaseModel):
+    """最终交付的完整剧本"""
+    schema_version: str = "1.0.0"
+    title: str = ""
+    original_author: str = ""
+    conversion_date: str = ""
+    dramatis_personae: list = Field(default_factory=list)
+    scenes: list[ChunkScene] = Field(default_factory=list)
+    adaptation_notes: list[str] = Field(default_factory=list)
+    stats: FinalStats = Field(default_factory=FinalStats)

@@ -11,6 +11,7 @@ class PipelineStatus(str, Enum):
     CREATED = "created"
     PARSING = "parsing"
     PARSED = "parsed"
+    SCOUT_HITL = "scout_hitl"            # ⏸ Scout 后暂停，等待人类审阅
     CHAR_EXTRACTING = "char_extracting"
     CHAR_HITL = "char_hitl"
     CHAR_DONE = "char_done"

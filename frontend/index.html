@@ -1,88 +1,174 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 小说转剧本工具</title>
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-    <script defer src="https://unpkg.com/alpinejs@3.13.5/dist/cdn.min.js"></script>
-    <link rel="stylesheet" href="/static/css/style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AdaptAI — AI 小说转剧本</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
-    <main class="landing">
-        <h1>AI 小说转剧本工具</h1>
-        <p class="subtitle">将小说文本自动转换为结构化 YAML 剧本，支持人机协同编辑</p>
 
-        <div class="input-section" x-data="uploadForm()">
-            <div class="mode-tabs">
-                <button @click="mode = 'paste'" :class="{ active: mode === 'paste' }">粘贴文本</button>
-                <button @click="mode = 'upload'" :class="{ active: mode === 'upload' }">上传文件</button>
-            </div>
+<!-- ═══════════════════════════════════════════════════════
+     LANDING VIEW
+     ═══════════════════════════════════════════════════════ -->
+<div id="landing-view">
+  <div class="landing-container">
+    <!-- Hero -->
+    <div class="landing-hero">
+      <div class="landing-logo">
+        <div class="logo-icon">🎬</div>
+        <span class="logo-text">AdaptAI</span>
+      </div>
+      <h1>
+        <span class="hero-gradient">AI 小说转剧本</span>
+      </h1>
+      <p class="subtitle">
+        将小说文本智能转换为结构化 YAML 剧本，
+        支持章节解析、角色识别、场景切分、人机协同编辑
+      </p>
+      <div class="feature-pills">
+        <span class="feature-pill"><span class="pill-dot"></span>智能解析</span>
+        <span class="feature-pill"><span class="pill-dot"></span>角色识别</span>
+        <span class="feature-pill"><span class="pill-dot"></span>场景切分</span>
+        <span class="feature-pill"><span class="pill-dot"></span>人机协同</span>
+      </div>
+    </div>
 
-            <div x-show="mode === 'paste'" class="paste-area">
-                <textarea id="novel-text" x-model="text" placeholder="在此粘贴小说文本...&#10;&#10;支持自动识别章节分隔标记，如：&#10;## 第一章&#10;第1章&#10;Chapter 1" rows="15"></textarea>
-                <div class="char-count">已输入 <span x-text="text.length"></span> 字符</div>
-            </div>
+    <!-- Input Card -->
+    <div class="input-card">
+      <div class="mode-tabs">
+        <button class="mode-tab active" data-mode="paste">粘贴文本</button>
+        <button class="mode-tab" data-mode="upload">上传文件</button>
+      </div>
 
-            <div x-show="mode === 'upload'" class="upload-area">
-                <input type="file" id="file-input" accept=".txt,.md,.docx" @change="handleFile($event)" />
-                <label for="file-input" class="upload-label">
-                    <span x-text="fileName || '点击选择文件或拖拽到此处'"></span>
-                    <span class="upload-hint">支持 .txt / .md / .docx</span>
-                </label>
-            </div>
+      <!-- Paste -->
+      <div class="paste-area" id="paste-area">
+        <textarea
+          id="novel-text"
+          placeholder="在此粘贴小说文本...
 
-            <button class="btn-primary" @click="submit" :disabled="submitting">
-                <span x-show="!submitting">开始转换 →</span>
-                <span x-show="submitting">提交中...</span>
-            </button>
-            <div x-show="error" class="error-msg" x-text="error"></div>
+支持自动识别章节分隔标记，例如：
+## 第一章
+第1章
+Chapter 1"
+        ></textarea>
+        <div class="char-count">已输入 <span id="char-count">0</span> 字符</div>
+      </div>
+
+      <!-- Upload -->
+      <div class="upload-area" id="upload-area" style="display:none">
+        <input type="file" id="file-input" accept=".txt,.md,.docx">
+        <label for="file-input" class="upload-label">
+          <span class="upload-icon">📂</span>
+          <span class="upload-text" id="upload-text">点击选择文件或拖拽到此处</span>
+          <span class="upload-hint">支持 .txt / .md / .docx</span>
+        </label>
+      </div>
+
+      <button class="btn-submit" id="btn-submit" onclick="submitNovel()">
+        开始转换 →
+      </button>
+      <div class="error-msg" id="submit-error" style="display:none"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     WORKSPACE VIEW
+     ═══════════════════════════════════════════════════════ -->
+<div id="workspace-view" class="view-hidden">
+  <!-- Top Bar -->
+  <header class="topbar">
+    <a class="topbar-logo" onclick="goHome()" title="返回首页">
+      <span class="logo-dot"></span>AdaptAI
+    </a>
+    <div class="topbar-progress">
+      <div class="progress-track">
+        <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+      </div>
+      <span class="progress-percent" id="progress-percent">0%</span>
+    </div>
+    <span class="topbar-status" id="status-badge">等待启动</span>
+  </header>
+
+  <div class="workspace-body">
+    <!-- Pipeline Sidebar -->
+    <aside class="pipeline-sidebar" id="pipeline-sidebar">
+      <div class="sidebar-title">Pipeline 流程</div>
+
+      <div class="pipeline-step" data-agent="scout_agent">
+        <div class="step-indicator" id="icon-scout_agent">1</div>
+        <div class="step-info">
+          <span class="step-label">全局扫描 (Scout)</span>
+          <span class="step-desc">提取人物表 + 地点表</span>
         </div>
+      </div>
+
+      <div class="pipeline-step" data-agent="map_agent">
+        <div class="step-indicator" id="icon-map_agent">2</div>
+        <div class="step-info">
+          <span class="step-label">切片转换 (Map)</span>
+          <span class="step-desc">逐块生成 YAML 场景</span>
+        </div>
+      </div>
+
+      <div class="pipeline-step" data-agent="validator">
+        <div class="step-indicator" id="icon-validator">3</div>
+        <div class="step-info">
+          <span class="step-label">校验合并 (Reduce)</span>
+          <span class="step-desc">Pydantic + R1 深度质检</span>
+        </div>
+      </div>
+
+      <div class="pipeline-actions">
+        <button class="btn-start" id="btn-start" onclick="startPipeline()">开始转换</button>
+      </div>
+    </aside>
+
+    <!-- Content Area -->
+    <main class="content-area" id="content-area">
+      <!-- Terminal / Live Log -->
+      <div class="terminal-panel">
+        <div class="terminal-header">
+          <span class="terminal-dot red"></span>
+          <span class="terminal-dot yellow"></span>
+          <span class="terminal-dot green"></span>
+          <span class="terminal-title">AdaptAI Pipeline Log</span>
+        </div>
+        <div class="terminal-body" id="terminal-body">
+          <div class="empty-state">
+            <span class="empty-icon">▶</span>
+            <span class="empty-text">点击"开始转换"启动 AI Pipeline，实时日志将在此显示</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- HITL Panel (hidden by default) -->
+      <div class="hitl-panel" id="hitl-panel" style="display:none"></div>
+
+      <!-- Result Panel (hidden by default) -->
+      <div class="result-panel" id="result-panel" style="display:none">
+        <div class="result-panel-header">
+          <span class="result-panel-title">YAML 剧本输出</span>
+          <div class="result-actions">
+            <button class="btn-sm" onclick="copyYAML()">复制</button>
+            <button class="btn-sm" onclick="downloadYAML()">下载</button>
+          </div>
+        </div>
+        <div class="result-content">
+          <pre id="yaml-content"></pre>
+        </div>
+      </div>
     </main>
+  </div>
+</div>
 
-    <script>
-    function uploadForm() {
-        return {
-            mode: 'paste',
-            text: '',
-            fileName: '',
-            fileContent: null,
-            submitting: false,
-            error: '',
-
-            handleFile(event) {
-                const file = event.target.files[0];
-                if (!file) return;
-                this.fileName = file.name;
-                const reader = new FileReader();
-                reader.onload = (e) => { this.fileContent = e.target.result; };
-                reader.readAsText(file);
-            },
-
-            async submit() {
-                this.error = '';
-                this.submitting = true;
-                try {
-                    const formData = new FormData();
-                    if (this.mode === 'paste') {
-                        if (!this.text.trim()) { this.error = '请输入小说文本'; this.submitting = false; return; }
-                        formData.append('text', this.text);
-                    } else {
-                        if (!this.fileContent) { this.error = '请选择文件'; this.submitting = false; return; }
-                        formData.append('text', this.fileContent);
-                    }
-                    const resp = await fetch('/api/sessions', { method: 'POST', body: formData });
-                    if (!resp.ok) { const d = await resp.json(); throw new Error(d.detail || '创建失败'); }
-                    const data = await resp.json();
-                    window.location.href = '/static/workspace.html?tid=' + data.thread_id;
-                } catch (e) {
-                    this.error = e.message;
-                } finally {
-                    this.submitting = false;
-                }
-            }
-        };
-    }
-    </script>
+<!-- ═══════════════════════════════════════════════════════
+     SCRIPTS
+     ═══════════════════════════════════════════════════════ -->
+<script src="js/app.js"></script>
 </body>
 </html>

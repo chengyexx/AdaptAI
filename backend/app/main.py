@@ -1,28 +1,49 @@
-from fastapi import FastAPI, WebSocket
-from fastapi.staticfiles import StaticFiles
+import sys
 from pathlib import Path
+
+# 将 app 目录加入 sys.path，使顶层模块（state/llm/agents/orchestrator）可被导入
+sys.path.insert(0, str(Path(__file__).parent))
+
+from fastapi import FastAPI, WebSocket
+from fastapi.middleware.cors import CORSMiddleware
 
 from .api.routes import router as api_router
 from .api.websocket import websocket_endpoint
 
 app = FastAPI(
-    title="Novel-to-Screenplay AI Tool",
+    title="AdaptAI — Novel-to-Screenplay AI",
     description="将小说文本通过 AI 转换为结构化 YAML 剧本",
-    version="0.1.0",
+    version="0.2.0",
 )
 
-# REST API
+# ── CORS ──────────────────────────────────────────────────
+# 前后端分离：允许前端从任意地址访问后端 API
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],          # 开发阶段允许所有来源
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ── REST API ──────────────────────────────────────────────
 app.include_router(api_router)
 
-# WebSocket
+# ── WebSocket ─────────────────────────────────────────────
 @app.websocket("/ws/{thread_id}")
 async def ws_endpoint(websocket: WebSocket, thread_id: str):
     await websocket_endpoint(websocket, thread_id)
 
-# 挂载前端静态文件
-frontend_path = Path(__file__).parent.parent.parent / "frontend"
-if frontend_path.exists():
-    app.mount("/static", StaticFiles(directory=str(frontend_path)), name="static")
+
+@app.get("/")
+async def root():
+    """根路径 — 前端独立部署时返回 API 信息"""
+    return {
+        "service": "AdaptAI API",
+        "version": app.version,
+        "docs": "/docs",
+        "health": "/health",
+    }
 
 
 @app.get("/health")

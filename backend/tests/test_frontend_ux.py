@@ -29,7 +29,7 @@ def workspace_html():
 def test_css_uses_design_tokens(css):
     """CSS 应使用 CSS 变量而非裸写 hex 值"""
     tokens = ["--bg-root", "--bg-surface", "--text-primary", "--text-secondary",
-              "--accent", "--success", "--warning", "--danger"]
+              "--brand-500", "--success", "--warning", "--danger"]
     for token in tokens:
         assert f"var({token}" in css or token in css, f"缺少设计令牌: {token}"
 
