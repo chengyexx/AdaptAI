@@ -18,7 +18,7 @@ SCENE_JSON = """{
       },
       "characters_present": ["c1"],
       "mood": "宁静",
-      "summary": "林墨照料玫瑰。"
+      "summary": "林墨在花园照料玫瑰。"
     },
     {
       "scene_id": "s2",
@@ -51,7 +51,7 @@ def mock_adapter():
 
 
 @pytest.fixture
-def state_base():
+def state_with_chapters_and_chars():
     return {
         "artifacts": {
             "chapters": [
@@ -65,33 +65,40 @@ def state_base():
     }
 
 
+# ── Prompt 构建 ──
+
 @pytest.mark.asyncio
-async def test_build_prompt_includes_characters(state_base):
+async def test_build_prompt_includes_characters(state_with_chapters_and_chars):
     agent = SceneAgent()
-    _, user = agent.build_prompt(state_base)
+    _, user = agent.build_prompt(state_with_chapters_and_chars)
+    assert "c1" in user
     assert "林墨" in user
     assert "c2" in user
 
 
 @pytest.mark.asyncio
-async def test_build_prompt_includes_chapter_text(state_base):
+async def test_build_prompt_includes_chapter_text(state_with_chapters_and_chars):
     agent = SceneAgent()
-    _, user = agent.build_prompt(state_base)
+    _, user = agent.build_prompt(state_with_chapters_and_chars)
     assert "第一章" in user
 
 
+# ── Agent 运行 ──
+
 @pytest.mark.asyncio
-async def test_scene_agent_run(mock_adapter, state_base):
+async def test_scene_agent_run(mock_adapter, state_with_chapters_and_chars):
     agent = SceneAgent()
-    result = await agent.run(state_base, mock_adapter)
+    result = await agent.run(state_with_chapters_and_chars, mock_adapter)
+
     assert result.success
     assert len(result.output["scenes"]) == 2
     assert result.output["scenes"][0]["heading"]["location"] == "EXT. GARDEN"
+    assert result.confidence > 0.5
 
 
 @pytest.mark.asyncio
 async def test_scene_agent_auto_assigns_ids(mock_adapter):
-    json_no_ids = """{
+    json_without_ids = """{
       "scenes": [
         {"chapter": 1, "heading": {"location": "A", "time_of_day": "MORNING"}, "characters_present": [], "mood": "", "summary": "X"},
         {"chapter": 1, "heading": {"location": "B", "time_of_day": "NIGHT"}, "characters_present": [], "mood": "", "summary": "Y"}
@@ -100,18 +107,22 @@ async def test_scene_agent_auto_assigns_ids(mock_adapter):
     }"""
     adapter = AsyncMock()
     adapter.complete.return_value = LLMResponse(
-        text=json_no_ids, model="mock", token_usage={"output": 50}
+        text=json_without_ids, model="mock", token_usage={"output": 50}
     )
     agent = SceneAgent()
     result = await agent.run(
         {"artifacts": {"chapters": [{"title": "T", "text": "X"}], "characters": []}}, adapter
     )
     assert result.output["scenes"][0]["scene_id"] == "s1"
+    assert result.output["scenes"][1]["scene_id"] == "s2"
 
+
+# ── 交叉验证 ──
 
 @pytest.mark.asyncio
-async def test_cross_validate_detects_invalid_char():
-    json_bad = """{
+async def test_cross_validate_detects_invalid_character(mock_adapter):
+    """场景引用不存在的角色时置信度降低"""
+    json_with_bad_char = """{
       "scenes": [
         {"scene_id":"s1","chapter":1,"heading":{"location":"A","time_of_day":"MORNING"},"characters_present":["c99"],"mood":"","summary":"X"}
       ],
@@ -119,7 +130,7 @@ async def test_cross_validate_detects_invalid_char():
     }"""
     adapter = AsyncMock()
     adapter.complete.return_value = LLMResponse(
-        text=json_bad, model="mock", token_usage={"output": 50}
+        text=json_with_bad_char, model="mock", token_usage={"output": 50}
     )
     agent = SceneAgent()
     state = {
@@ -129,23 +140,28 @@ async def test_cross_validate_detects_invalid_char():
         }
     }
     result = await agent.run(state, adapter)
-    assert result.confidence < 0.8
+    assert result.confidence < 0.8  # cross_validate 扣分
 
 
-def test_cross_validate_empty_chars_returns_1():
+def test_cross_validate_empty_characters():
+    """无角色表时交叉验证不扣分"""
     agent = SceneAgent()
     output = {"scenes": [{"characters_present": ["any_id"]}]}
     state = {"artifacts": {"characters": []}}
-    assert agent._cross_validate(output, state) == 1.0
+    score = agent._cross_validate(output, state)
+    assert score == 1.0
 
 
 def test_cross_validate_perfect_match():
+    """所有引用都在角色表中"""
     agent = SceneAgent()
     output = {"scenes": [
         {"characters_present": ["c1", "c2"]},
         {"characters_present": ["c1"]},
     ]}
     state = {"artifacts": {"characters": [
-        {"id": "c1", "name": "A"}, {"id": "c2", "name": "B"},
+        {"id": "c1", "name": "A"},
+        {"id": "c2", "name": "B"},
     ]}}
-    assert agent._cross_validate(output, state) == 1.0
+    score = agent._cross_validate(output, state)
+    assert score == 1.0

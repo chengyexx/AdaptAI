@@ -2,5 +2,5 @@
 
 {chapter_texts}
 
-已知角色列表：
+已知角色列表（每个角色的 ID 和姓名）：
 {character_list}
