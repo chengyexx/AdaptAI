@@ -1,7 +1,6 @@
 """Happy Path Pipeline — 线性执行章节解析→角色→场景→剧本→校验"""
 
-import json
-from state.models import SessionState, PipelineStatus
+from state.models import SessionState, PipelineStatus, PipelineMeta, Artifacts
 from state.sqlite_store import SQLiteStateStore
 from agents.chapter_parser import ChapterParser
 from agents.character_agent import CharacterAgent
@@ -12,7 +11,15 @@ from llm.factory import AdapterFactory
 
 
 class Pipeline:
-    AGENT_ORDER = ["chapter_parser", "character_agent", "scene_agent", "script_agent", "validator"]
+    """线性执行 Pipeline — Happy Path 默认模式"""
+
+    AGENT_ORDER = [
+        "chapter_parser",
+        "character_agent",
+        "scene_agent",
+        "script_agent",
+        "validator",
+    ]
 
     def __init__(self, state_store: SQLiteStateStore | None = None):
         self.state_store = state_store or SQLiteStateStore()
@@ -20,17 +27,17 @@ class Pipeline:
         self.validator = Validator()
 
     async def execute(self, state: SessionState) -> SessionState:
+        """完整执行 Pipeline，返回最终状态"""
         llm_adapter = AdapterFactory.from_env()
 
         try:
-            # Step 1: 章节解析（规则引擎）
+            # Step 1: 章节解析（规则引擎，不需要 LLM）
             state.status = PipelineStatus.PARSING
             state.pipeline_state.current_agent = "chapter_parser"
             await self._persist(state)
 
-            if state.artifacts.chapters and state.artifacts.chapters[0].get("text"):
-                chapters = self.parser.parse(state.artifacts.chapters[0]["text"])
-                state.artifacts.chapters = chapters
+            chapters = self.parser.parse(state.artifacts.chapters[0]["text"] if state.artifacts.chapters else "")
+            state.artifacts.chapters = chapters
             state.pipeline_state.checkpoint_stack.append("parser_done")
 
             # Step 2: 角色识别
@@ -41,7 +48,8 @@ class Pipeline:
 
             char_agent = CharacterAgent()
             char_result = await char_agent.run(
-                {"artifacts": {"chapters": state.artifacts.chapters}}, llm_adapter)
+                {"artifacts": {"chapters": state.artifacts.chapters}}, llm_adapter
+            )
             if char_result.success:
                 state.artifacts.characters = char_result.output.get("characters", [])
                 state.pipeline_state.checkpoint_stack.append("char_done")
@@ -59,7 +67,9 @@ class Pipeline:
 
             scene_agent = SceneAgent()
             scene_result = await scene_agent.run(
-                {"artifacts": {"chapters": state.artifacts.chapters, "characters": state.artifacts.characters}}, llm_adapter)
+                {"artifacts": {"chapters": state.artifacts.chapters, "characters": state.artifacts.characters}},
+                llm_adapter,
+            )
             if scene_result.success:
                 state.artifacts.scenes = scene_result.output.get("scenes", [])
                 state.pipeline_state.checkpoint_stack.append("scene_done")
@@ -77,8 +87,11 @@ class Pipeline:
 
             script_agent = ScriptAgent()
             script_result = await script_agent.run(
-                {"artifacts": {"chapters": state.artifacts.chapters, "characters": state.artifacts.characters, "scenes": state.artifacts.scenes}}, llm_adapter)
+                {"artifacts": {"chapters": state.artifacts.chapters, "characters": state.artifacts.characters, "scenes": state.artifacts.scenes}},
+                llm_adapter,
+            )
             if script_result.success:
+                import json
                 state.artifacts.script_yaml = json.dumps(script_result.output, ensure_ascii=False, indent=2)
                 state.artifacts.adaptation_notes = script_result.output.get("adaptation_notes", [])
                 state.pipeline_state.checkpoint_stack.append("script_done")
@@ -116,4 +129,4 @@ class Pipeline:
         try:
             await self.state_store.save(state)
         except Exception:
-            pass
+            pass  # 持久化失败不中断执行

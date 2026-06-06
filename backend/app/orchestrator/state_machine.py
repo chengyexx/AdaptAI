@@ -2,6 +2,7 @@
 
 from state.models import PipelineStatus
 
+# 合法的状态转换映射
 TRANSITIONS: dict[PipelineStatus, set[PipelineStatus]] = {
     PipelineStatus.CREATED:           {PipelineStatus.PARSING, PipelineStatus.ERROR},
     PipelineStatus.PARSING:           {PipelineStatus.PARSED, PipelineStatus.ERROR},
@@ -23,6 +24,8 @@ TRANSITIONS: dict[PipelineStatus, set[PipelineStatus]] = {
 
 
 class StateMachine:
+    """管理 Pipeline 状态转换"""
+
     @staticmethod
     def can_transition(current: PipelineStatus, target: PipelineStatus) -> bool:
         return target in TRANSITIONS.get(current, set())
@@ -32,7 +35,8 @@ class StateMachine:
         if not StateMachine.can_transition(current, target):
             allowed = TRANSITIONS.get(current, set())
             raise ValueError(
-                f"非法状态转换: {current.value} -> {target.value}。允许: {[s.value for s in allowed]}"
+                f"非法状态转换: {current.value} → {target.value}。"
+                f"允许: {[s.value for s in allowed]}"
             )
         return target
 
@@ -42,10 +46,13 @@ class StateMachine:
 
     @staticmethod
     def is_hitl_status(status: PipelineStatus) -> bool:
-        return status in {PipelineStatus.CHAR_HITL, PipelineStatus.SCENE_HITL, PipelineStatus.SCRIPT_HITL}
+        return status in {
+            PipelineStatus.CHAR_HITL, PipelineStatus.SCENE_HITL, PipelineStatus.SCRIPT_HITL
+        }
 
     @staticmethod
     def agent_for_status(status: PipelineStatus) -> str:
+        """返回该状态下应执行的 Agent ID"""
         agent_map = {
             PipelineStatus.PARSING: "chapter_parser",
             PipelineStatus.CHAR_EXTRACTING: "character_agent",
