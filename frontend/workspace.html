@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工作台 — AI 小说转剧本</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div id="app" class="workspace">
+        <!-- 顶栏 -->
+        <header class="topbar">
+            <a href="/" class="logo">AdaptAI</a>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
+            </div>
+            <span id="stage-badge" class="stage-badge">等待启动</span>
+            <span id="progress-text" class="progress-text">0%</span>
+        </header>
+
+        <div class="workspace-body">
+            <!-- 左侧 Pipeline 面板 -->
+            <aside class="pipeline-panel" id="pipeline-panel">
+                <div class="stage" data-agent="chapter_parser">
+                    <span class="stage-icon" id="icon-chapter_parser">○</span>
+                    <span>章节解析</span>
+                </div>
+                <div class="stage" data-agent="character_agent">
+                    <span class="stage-icon" id="icon-character_agent">○</span>
+                    <span>角色识别</span>
+                </div>
+                <div class="stage" data-agent="scene_agent">
+                    <span class="stage-icon" id="icon-scene_agent">○</span>
+                    <span>场景切分</span>
+                </div>
+                <div class="stage" data-agent="script_agent">
+                    <span class="stage-icon" id="icon-script_agent">○</span>
+                    <span>剧本生成</span>
+                </div>
+                <div class="stage" data-agent="validator">
+                    <span class="stage-icon" id="icon-validator">○</span>
+                    <span>校验导出</span>
+                </div>
+                <div class="pipeline-actions">
+                    <button id="btn-start" class="btn-sm">开始转换</button>
+                </div>
+            </aside>
+
+            <!-- 右侧内容区 -->
+            <main class="content-area" id="content-area">
+                <div id="loading-msg">正在加载会话状态...</div>
+                <div id="hitl-editor" style="display:none"></div>
+                <div id="yaml-preview" style="display:none">
+                    <h3>剧本 YAML 预览</h3>
+                    <pre id="yaml-content"></pre>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="/static/js/state.js"></script>
+    <script src="/static/js/websocket.js"></script>
+    <script src="/static/js/pipeline.js"></script>
+    <script src="/static/js/hitl.js"></script>
+    <script>
+    // 初始化
+    (async function init() {
+        const tid = new URLSearchParams(window.location.search).get('tid');
+        if (!tid) { window.location.href = '/'; return; }
+
+        AppState.threadId = tid;
+
+        // 冷启动：REST 恢复
+        try {
+            const resp = await fetch('/api/sessions/' + tid);
+            if (resp.ok) {
+                const data = await resp.json();
+                AppState.session = data;
+                renderPipeline(data.pipeline_state, data.status);
+                if (data.pending_hitl) {
+                    renderHITL(data.pending_hitl, data.artifacts);
+                }
+            }
+        } catch (e) {
+            document.getElementById('loading-msg').textContent = '加载失败: ' + e.message;
+        }
+
+        document.getElementById('loading-msg').style.display = 'none';
+
+        // 连接 WebSocket
+        connectWS(tid);
+
+        // 开始按钮
+        document.getElementById('btn-start').onclick = async () => {
+            document.getElementById('btn-start').disabled = true;
+            await fetch('/api/sessions/' + tid + '/start', { method: 'POST' });
+        };
+    })();
+    </script>
+</body>
+</html>
