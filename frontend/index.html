@@ -10,47 +10,79 @@
 </head>
 <body>
     <main class="landing">
-        <h1>📖 AI 小说转剧本工具</h1>
+        <h1>AI 小说转剧本工具</h1>
         <p class="subtitle">将小说文本自动转换为结构化 YAML 剧本，支持人机协同编辑</p>
 
-        <div class="input-section" x-data="{ mode: 'paste' }">
+        <div class="input-section" x-data="uploadForm()">
             <div class="mode-tabs">
-                <button @click="mode = 'paste'" :class="{ active: mode === 'paste' }">
-                    粘贴文本
-                </button>
-                <button @click="mode = 'upload'" :class="{ active: mode === 'upload' }">
-                    上传文件 (.txt / .md / .docx)
-                </button>
+                <button @click="mode = 'paste'" :class="{ active: mode === 'paste' }">粘贴文本</button>
+                <button @click="mode = 'upload'" :class="{ active: mode === 'upload' }">上传文件</button>
             </div>
 
-            <!-- 粘贴模式 -->
             <div x-show="mode === 'paste'" class="paste-area">
-                <textarea
-                    id="novel-text"
-                    placeholder="在此粘贴小说文本...&#10;&#10;支持自动识别章节分隔标记，如：&#10;## 第一章&#10;第1章&#10;Chapter 1"
-                    rows="15"
-                ></textarea>
-                <div class="char-count">
-                    已输入 <span id="char-count">0</span> 字符 |
-                    最少需要 3 个章节才能生成完整剧本
-                </div>
+                <textarea id="novel-text" x-model="text" placeholder="在此粘贴小说文本...&#10;&#10;支持自动识别章节分隔标记，如：&#10;## 第一章&#10;第1章&#10;Chapter 1" rows="15"></textarea>
+                <div class="char-count">已输入 <span x-text="text.length"></span> 字符</div>
             </div>
 
-            <!-- 上传模式 -->
             <div x-show="mode === 'upload'" class="upload-area">
-                <input type="file" id="file-input" accept=".txt,.md,.docx" />
+                <input type="file" id="file-input" accept=".txt,.md,.docx" @change="handleFile($event)" />
                 <label for="file-input" class="upload-label">
-                    <span>点击选择文件或拖拽到此处</span>
+                    <span x-text="fileName || '点击选择文件或拖拽到此处'"></span>
                     <span class="upload-hint">支持 .txt / .md / .docx</span>
                 </label>
             </div>
 
-            <button class="btn-primary" id="start-btn" disabled>
-                开始转换 →
+            <button class="btn-primary" @click="submit" :disabled="submitting">
+                <span x-show="!submitting">开始转换 →</span>
+                <span x-show="submitting">提交中...</span>
             </button>
+            <div x-show="error" class="error-msg" x-text="error"></div>
         </div>
     </main>
 
-    <script src="/static/js/state.js"></script>
+    <script>
+    function uploadForm() {
+        return {
+            mode: 'paste',
+            text: '',
+            fileName: '',
+            fileContent: null,
+            submitting: false,
+            error: '',
+
+            handleFile(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+                this.fileName = file.name;
+                const reader = new FileReader();
+                reader.onload = (e) => { this.fileContent = e.target.result; };
+                reader.readAsText(file);
+            },
+
+            async submit() {
+                this.error = '';
+                this.submitting = true;
+                try {
+                    const formData = new FormData();
+                    if (this.mode === 'paste') {
+                        if (!this.text.trim()) { this.error = '请输入小说文本'; this.submitting = false; return; }
+                        formData.append('text', this.text);
+                    } else {
+                        if (!this.fileContent) { this.error = '请选择文件'; this.submitting = false; return; }
+                        formData.append('text', this.fileContent);
+                    }
+                    const resp = await fetch('/api/sessions', { method: 'POST', body: formData });
+                    if (!resp.ok) { const d = await resp.json(); throw new Error(d.detail || '创建失败'); }
+                    const data = await resp.json();
+                    window.location.href = '/static/workspace.html?tid=' + data.thread_id;
+                } catch (e) {
+                    this.error = e.message;
+                } finally {
+                    this.submitting = false;
+                }
+            }
+        };
+    }
+    </script>
 </body>
 </html>

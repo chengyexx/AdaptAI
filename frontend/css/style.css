@@ -127,3 +127,41 @@ body {
     color: #484f58;
     cursor: not-allowed;
 }
+
+/* ── Workspace ── */
+.workspace { display: flex; flex-direction: column; min-height: 100vh; }
+.topbar { display: flex; align-items: center; gap: 16px; padding: 12px 24px; background: #161b22; border-bottom: 1px solid #30363d; }
+.topbar .logo { color: #1f6feb; font-weight: 700; text-decoration: none; font-size: 1.1rem; }
+.progress-bar { flex: 1; height: 8px; background: #21262d; border-radius: 4px; overflow: hidden; }
+.progress-fill { height: 100%; background: #1f6feb; transition: width 0.3s; }
+.stage-badge { padding: 4px 12px; border-radius: 12px; font-size: 0.85rem; background: #21262d; color: #8b949e; }
+.progress-text { color: #8b949e; font-size: 0.85rem; min-width: 40px; }
+.workspace-body { display: flex; flex: 1; }
+.pipeline-panel { width: 220px; padding: 20px; background: #161b22; border-right: 1px solid #30363d; display: flex; flex-direction: column; gap: 8px; }
+.pipeline-panel .stage { display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 6px; color: #8b949e; font-size: 0.9rem; }
+.pipeline-panel .stage-icon { font-size: 1rem; min-width: 20px; text-align: center; }
+.pipeline-actions { margin-top: auto; padding-top: 16px; border-top: 1px solid #30363d; }
+.content-area { flex: 1; padding: 24px; overflow-y: auto; }
+#loading-msg { color: #8b949e; text-align: center; padding: 60px; }
+
+/* HITL Editor */
+.hitl-card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 20px; max-width: 700px; }
+.hitl-card h3 { margin-bottom: 8px; }
+.hitl-reason { color: #d2991d; font-size: 0.9rem; margin-bottom: 16px; }
+.edit-card { background: #0f1117; border: 1px solid #21262d; border-radius: 6px; padding: 12px; margin-bottom: 8px; }
+.edit-card label { display: block; margin-bottom: 6px; font-size: 0.85rem; color: #8b949e; }
+.edit-card input { width: 100%; padding: 6px 10px; background: #161b22; border: 1px solid #30363d; border-radius: 4px; color: #e1e4e8; font-size: 0.9rem; }
+.hitl-actions { display: flex; gap: 12px; margin-top: 16px; }
+.btn-sm { padding: 8px 20px; border: 1px solid #30363d; border-radius: 6px; background: #21262d; color: #e1e4e8; cursor: pointer; font-size: 0.9rem; }
+.btn-sm:hover { background: #30363d; }
+.btn-secondary { padding: 10px 24px; border: 1px solid #30363d; border-radius: 8px; background: #21262d; color: #8b949e; cursor: pointer; }
+.btn-link { color: #1f6feb; text-decoration: none; padding: 10px 24px; }
+
+/* Export */
+.export-page { max-width: 800px; margin: 40px auto; padding: 24px; }
+.export-actions { display: flex; gap: 12px; margin-bottom: 20px; }
+.export-page pre { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 20px; overflow-x: auto; font-size: 0.85rem; line-height: 1.6; white-space: pre-wrap; }
+
+/* Error */
+.error-msg { color: #f85149; font-size: 0.9rem; margin-top: 12px; }
+.error-box { background: #2d1414; border: 1px solid #f85149; border-radius: 8px; padding: 16px; margin: 20px 0; }
