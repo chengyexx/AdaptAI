@@ -1,0 +1,7 @@
+基于以下角色表和场景列表，生成完整的剧本 YAML：
+
+角色表：
+{character_table}
+
+场景列表：
+{scene_list}

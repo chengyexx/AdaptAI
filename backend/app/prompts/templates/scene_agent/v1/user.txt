@@ -1,0 +1,6 @@
+请将以下章节文本切分为场景单元：
+
+{chapter_texts}
+
+已知角色列表：
+{character_list}
