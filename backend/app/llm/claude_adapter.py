@@ -23,6 +23,11 @@ class ClaudeAdapter:
             from anthropic import AsyncAnthropic
             self._client = AsyncAnthropic(api_key=self.api_key)
 
+    async def close(self):
+        if self._client is not None:
+            await self._client.close()
+            self._client = None
+
     async def complete(
         self,
         prompt: str,

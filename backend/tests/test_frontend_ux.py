@@ -16,20 +16,12 @@ def index_html():
     return (FRONTEND / "index.html").read_text(encoding="utf-8")
 
 
-@pytest.fixture
-def workspace_html():
-    path = FRONTEND / "workspace.html"
-    if not path.exists():
-        pytest.skip("workspace.html 尚未创建（将在 PR 12 添加）")
-    return path.read_text(encoding="utf-8")
-
-
 # ── Design Tokens ──
 
 def test_css_uses_design_tokens(css):
     """CSS 应使用 CSS 变量而非裸写 hex 值"""
-    tokens = ["--bg-root", "--bg-surface", "--text-primary", "--text-secondary",
-              "--brand-500", "--success", "--warning", "--danger"]
+    tokens = ["--paper", "--ink", "--ink-soft", "--ink-faint",
+              "--red", "--red-glow", "--border", "--border-soft"]
     for token in tokens:
         assert f"var({token}" in css or token in css, f"缺少设计令牌: {token}"
 
@@ -67,9 +59,9 @@ def test_index_has_main_landmark(index_html):
     assert "<main" in index_html
 
 
-def test_workspace_has_nav_landmark(workspace_html):
-    """工作台应有导航结构"""
-    assert "<aside" in workspace_html or "<nav" in workspace_html
+def test_workspace_has_nav_landmark(index_html):
+    """工作区应有导航结构（SPA 单页架构）"""
+    assert "<aside" in index_html or "<nav" in index_html
 
 
 # ── Performance ──

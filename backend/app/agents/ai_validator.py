@@ -5,7 +5,6 @@
   Stage 2 (R1 深度推理): 角色OOC检测、伏笔逻辑一致性、冲突调度合理性、剧本可拍摄性 → CoT 深度分析
 """
 
-from .base import BaseAgent, AgentResult
 from .validator import Validator
 
 
@@ -86,6 +85,11 @@ class AIValidator:
     Stage 2: R1 深度推理审查 (角色OOC + 逻辑一致性 + 改编质量)
     """
 
+    # 提示词截断阈值（保护上下文窗口；对超长剧本应优先截 scene 而非角色）
+    MAX_CHAR_INFO = 4000
+    MAX_SCENE_INFO = 4000
+    MAX_SCRIPT_YAML = 12000
+
     def __init__(self):
         self.rule_validator = Validator()
 
@@ -164,9 +168,9 @@ class AIValidator:
     ) -> dict | None:
         """调用 R1 Reasoner 进行深度推理审查"""
         user_prompt = AI_VALIDATOR_USER_PROMPT.format(
-            characters_info=characters_info[:3000],
-            scenes_info=scenes_info[:3000],
-            script_yaml=script_yaml[:8000] if script_yaml else "（尚未生成）",
+            characters_info=characters_info[:self.MAX_CHAR_INFO],
+            scenes_info=scenes_info[:self.MAX_SCENE_INFO],
+            script_yaml=script_yaml[:self.MAX_SCRIPT_YAML] if script_yaml else "（尚未生成）",
             adaptation_notes="\n".join(f"- {n}" for n in (adaptation_notes or [])) if adaptation_notes else "（无）",
         )
 

@@ -129,4 +129,4 @@ class MapAgent(BaseAgent):
 
     async def run(self, state: dict, llm_adapter) -> AgentResult:
         """不直接使用此方法，由 Pipeline 按 chunk 调用 run_for_chunk"""
-        return AgentResult(agent_id=self.agent_id, success=False, output={}, confidence=0.0)
+        raise NotImplementedError("MapAgent 应通过 run_for_chunk() 使用，而非 run()")

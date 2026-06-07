@@ -12,16 +12,14 @@ from agents.scene_agent import SceneAgent
 from agents.script_agent import ScriptAgent
 from agents.validator import Validator
 from llm.factory import AdapterFactory
+from .base_pipeline import BasePipeline
 
 
-class HappyPathPipeline:
+class HappyPathPipeline(BasePipeline):
     """线性 Pipeline + 每节点 HITL 检查点 — 适用于短文本 (<2万字)"""
 
-    AGENT_ORDER = ["chapter_parser", "character_agent", "scene_agent", "script_agent", "validator"]
-
     def __init__(self, state_store: SQLiteStateStore | None = None, ws_manager=None):
-        self.state_store = state_store or SQLiteStateStore()
-        self.ws_manager = ws_manager
+        super().__init__(state_store, ws_manager)
         self.parser = ChapterParser()
         self.rule_validator = Validator()
 
@@ -52,6 +50,8 @@ class HappyPathPipeline:
 
         try:
             # ══ Step 1: 章节解析（规则引擎）══
+            # create_session 已调用 ChapterParser.parse() 完成解析，
+            # 此处仅标记进度，不重解析（避免覆盖已完整的分章结果）
             if start in (PipelineStatus.CREATED,):
                 state.status = PipelineStatus.PARSING
                 state.pipeline_state.current_agent = "chapter_parser"
@@ -59,14 +59,13 @@ class HappyPathPipeline:
                 await self._persist(state)
                 await self._push_progress(tid, "chapter_parser", 0.1)
 
-                chapters = self.parser.parse(state.artifacts.chapters[0]["text"] if state.artifacts.chapters else "")
-                state.artifacts.chapters = chapters
                 state.pipeline_state.checkpoint_stack.append("parser_done")
                 state.pipeline_state.progress = 0.2
+                n_chapters = len(state.artifacts.chapters)
                 await self._persist(state)
                 await self._push_progress(tid, "chapter_parser", 0.2)
                 await self._push_stage_complete(tid, "chapter_parser")
-                await self._log(tid, "success", f"章节解析完成: {len(chapters)} 章")
+                await self._log(tid, "success", f"章节已就绪: {n_chapters} 章")
 
             # ══ Step 2: 角色识别 ══
             if start in (PipelineStatus.CREATED, PipelineStatus.CHAR_HITL,):
@@ -199,8 +198,8 @@ class HappyPathPipeline:
         elif agent_name == "scene_agent":
             state.artifacts.scenes = output.get("scenes", [])
         elif agent_name == "script_agent":
-            import json
-            state.artifacts.script_yaml = json.dumps(output, ensure_ascii=False, indent=2)
+            import yaml
+            state.artifacts.script_yaml = yaml.dump(output, allow_unicode=True, default_flow_style=False, sort_keys=False)
 
         state.pipeline_state.checkpoint_stack.append(f"{agent_name}_done")
 
@@ -240,57 +239,3 @@ class HappyPathPipeline:
         await self._log(tid, "success", f"{log_msg}完成 (置信度: {result.confidence:.0%})")
         return state
 
-    # ═══════════════════════════════════════════════════════
-    # Helpers
-    # ═══════════════════════════════════════════════════════
-
-    async def _persist(self, state):
-        try:
-            await self.state_store.save(state)
-        except Exception:
-            pass
-
-    async def _push_progress(self, tid, agent, percent):
-        if self.ws_manager:
-            try:
-                await self.ws_manager.send_progress(tid, agent, percent)
-            except Exception:
-                pass
-
-    async def _push_stage_complete(self, tid, agent):
-        if self.ws_manager:
-            try:
-                await self.ws_manager.send_stage_complete(tid, agent, {"agent": agent})
-            except Exception:
-                pass
-
-    async def _push_error(self, tid, agent, message):
-        if self.ws_manager:
-            try:
-                await self.ws_manager.send_error(tid, agent, message, recoverable=True)
-            except Exception:
-                pass
-
-    async def _push_complete(self, tid, state):
-        if self.ws_manager:
-            try:
-                await self.ws_manager.send_complete(tid, {
-                    "thread_id": state.thread_id,
-                    "status": state.status.value,
-                    "script_yaml": state.artifacts.script_yaml,
-                    "characters": state.artifacts.characters,
-                    "scenes": state.artifacts.scenes,
-                })
-            except Exception:
-                pass
-
-    async def _log(self, tid, level, message):
-        if self.ws_manager:
-            try:
-                await self.ws_manager._broadcast(tid, {
-                    "type": "log",
-                    "level": level,
-                    "message": message,
-                })
-            except Exception:
-                pass

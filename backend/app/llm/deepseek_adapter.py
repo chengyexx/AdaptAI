@@ -19,16 +19,30 @@ class DeepSeekAdapter:
         self.api_key = api_key
         self._client: httpx.AsyncClient | None = None
 
-    def _ensure_client(self):
-        if self._client is None:
+    def _ensure_client(self) -> httpx.AsyncClient:
+        if self._client is None or self._client.is_closed:
             self._client = httpx.AsyncClient(
                 base_url="https://api.deepseek.com/v1",
                 headers={
                     "Authorization": f"Bearer {self.api_key}",
                     "Content-Type": "application/json",
                 },
-                timeout=httpx.Timeout(120.0, connect=10.0),
+                timeout=httpx.Timeout(60.0, connect=10.0),
             )
+        return self._client
+
+    async def close(self):
+        """关闭底层 HTTP 连接，释放资源"""
+        if self._client is not None and not self._client.is_closed:
+            await self._client.aclose()
+        self._client = None
+
+    async def __aenter__(self):
+        self._ensure_client()
+        return self
+
+    async def __aexit__(self, *args):
+        await self.close()
 
     async def complete(
         self,

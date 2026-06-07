@@ -4,8 +4,17 @@
    ═══════════════════════════════════════════════════════════ */
 
 /* ── Config ─────────────────────────────────────────────── */
-const API_BASE = "http://127.0.0.1:8000";
-const WS_BASE = "ws://127.0.0.1:8000";
+// 自动检测 API/WS 地址：同域部署则使用当前 host，否则回退到 localhost
+const API_HOST = (() => {
+  try {
+    if (window.location.hostname && window.location.hostname !== "" && window.location.hostname !== "127.0.0.1") {
+      return window.location.origin;
+    }
+  } catch (_) { /* ignore */ }
+  return "http://127.0.0.1:8000";
+})();
+const API_BASE = API_HOST;
+const WS_BASE = API_HOST.replace(/^http/, "ws");
 
 /* ── Global State ───────────────────────────────────────── */
 const State = {
@@ -23,9 +32,9 @@ const State = {
    ═══════════════════════════════════════════════════════════ */
 
 // Mode tabs
-document.querySelectorAll(".mode-tab").forEach(tab => {
+document.querySelectorAll(".tab").forEach(tab => {
   tab.addEventListener("click", () => {
-    document.querySelectorAll(".mode-tab").forEach(t => t.classList.remove("active"));
+    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
     tab.classList.add("active");
     const mode = tab.dataset.mode;
     document.getElementById("paste-area").style.display = mode === "paste" ? "block" : "none";
@@ -54,7 +63,7 @@ fileInput.addEventListener("change", () => {
 async function submitNovel() {
   const btn = document.getElementById("btn-submit");
   const errorEl = document.getElementById("submit-error");
-  const mode = document.querySelector(".mode-tab.active").dataset.mode;
+  const mode = document.querySelector(".tab.active").dataset.mode;
 
   errorEl.style.display = "none";
   btn.disabled = true;
@@ -147,24 +156,23 @@ function resetWorkspace() {
   document.getElementById("progress-fill").style.width = "0%";
   document.getElementById("progress-percent").textContent = "0%";
   document.getElementById("status-badge").textContent = "等待启动";
-  document.getElementById("status-badge").className = "topbar-status";
+  document.getElementById("status-badge").className = "status-badge";
   document.getElementById("btn-start").disabled = false;
   document.getElementById("result-panel").style.display = "none";
   document.getElementById("hitl-panel").style.display = "none";
   document.getElementById("terminal-body").innerHTML = `
-    <div class="empty-state">
-      <span class="empty-icon">▶</span>
-      <span class="empty-text">点击"开始转换"启动 AI Pipeline，实时日志将在此显示</span>
+    <div class="terminal-empty">
+      <span>点击左侧「开始转换」启动 AI Pipeline</span>
     </div>`;
 
   resetAllSteps();
 }
 
 function resetAllSteps() {
-  document.querySelectorAll(".pipeline-step").forEach(step => {
+  document.querySelectorAll(".step").forEach(step => {
     step.classList.remove("done", "active", "error");
   });
-  const agents = ["scout_agent", "map_agent", "validator"];
+  const agents = ["scout_agent", "hitl", "map_agent", "validator"];
   agents.forEach((agent, i) => {
     const icon = document.getElementById("icon-" + agent);
     if (icon) icon.textContent = String(i + 1);
@@ -232,7 +240,7 @@ async function startPipeline() {
 
   // Update status badge
   document.getElementById("status-badge").textContent = "启动中";
-  document.getElementById("status-badge").className = "topbar-status running";
+  document.getElementById("status-badge").className = "status-badge running";
 
   addLog("info", "正在提交 Pipeline 任务...");
 
@@ -264,12 +272,15 @@ async function startPipeline() {
     // 后台执行模式 — 状态通过 WebSocket 推送，无需轮询
     // 按钮保持 disabled，等待 WebSocket 事件更新
 
+    // 启动超时监控：60 秒无进度则提示
+    _startProgressWatchdog();
+
   } catch (e) {
     addLog("error", "启动失败: " + e.message);
     btn.disabled = false;
     btn.textContent = "开始转换";
     document.getElementById("status-badge").textContent = "启动失败";
-    document.getElementById("status-badge").className = "topbar-status error";
+    document.getElementById("status-badge").className = "status-badge error";
   }
 }
 
@@ -285,13 +296,67 @@ async function refreshSession() {
   }
 }
 
+/* ── Progress Watchdog ──  */
+let _watchdogTimer = null;
+let _lastProgressTime = 0;
+
+function _startProgressWatchdog() {
+  _stopProgressWatchdog();
+  _lastProgressTime = Date.now();
+
+  _watchdogTimer = setInterval(() => {
+    const elapsed = (Date.now() - _lastProgressTime) / 1000;
+    const status = State.status;
+
+    // 已完成/错误/暂停状态不触发看门狗
+    if (status === "completed" || status === "error" || (status && status.includes("_hitl"))) {
+      _stopProgressWatchdog();
+      return;
+    }
+
+    // 60 秒无进度，提示用户
+    if (elapsed > 60 && elapsed < 65) {
+      addLog("warn", "LLM 响应较慢（已等待 60s），小说较长或 API 繁忙，请耐心等待...");
+    }
+
+    // 120 秒无进度，提示可能卡住
+    if (elapsed > 120 && elapsed < 125) {
+      addLog("warn", "已等待 2 分钟，如持续无响应请检查后端控制台日志或刷新重试");
+    }
+  }, 5000); // 每 5 秒检查一次
+}
+
+function _stopProgressWatchdog() {
+  if (_watchdogTimer) {
+    clearInterval(_watchdogTimer);
+    _watchdogTimer = null;
+  }
+}
+
+function _touchProgress() {
+  _lastProgressTime = Date.now();
+}
+
 /* ═══════════════════════════════════════════════════════════
    PIPELINE UI RENDERING
    ═══════════════════════════════════════════════════════════ */
 
 function renderPipelineUI(pipelineState, status) {
-  const agents = ["scout_agent", "map_agent", "validator"];
-  const currentAgent = pipelineState?.current_agent || "";
+  // HTML steps: scout_agent(0) → hitl(1) → map_agent(2) → validator(3)
+  const agents = ["scout_agent", "hitl", "map_agent", "validator"];
+  // 映射 HappyPath 旧 agent 名到 SMR 步骤
+  const agentStepMap = {
+    "chapter_parser": "scout_agent",
+    "character_agent": "hitl",
+    "scene_agent": "map_agent",
+    "script_agent": "map_agent",
+    "scout_agent": "scout_agent",
+    "hitl": "hitl",
+    "map_agent": "map_agent",
+    "validator": "validator",
+  };
+  const rawAgent = pipelineState?.current_agent || "";
+  const currentAgent = agentStepMap[rawAgent] || rawAgent;
   const progress = pipelineState?.progress || 0;
 
   // Progress bar
@@ -323,7 +388,7 @@ function renderPipelineUI(pipelineState, status) {
   badge.textContent = statusMap[status] || (status || "未知");
 
   // Status badge style
-  badge.className = "topbar-status";
+  badge.className = "status-badge";
   if (status === "completed") badge.classList.add("completed");
   else if (status === "error") badge.classList.add("error");
   else if (status && status.includes("_hitl")) badge.classList.add("paused");
@@ -331,7 +396,7 @@ function renderPipelineUI(pipelineState, status) {
 
   // Pipeline steps
   agents.forEach((agent, i) => {
-    const step = document.querySelector(`.pipeline-step[data-agent="${agent}"]`);
+    const step = document.querySelector(`.step[data-agent="${agent}"]`);
     const icon = document.getElementById("icon-" + agent);
     if (!step || !icon) return;
 
@@ -393,7 +458,7 @@ function addLog(level, msg) {
   const body = document.getElementById("terminal-body");
 
   // Remove empty state if present
-  const empty = body.querySelector(".empty-state");
+  const empty = body.querySelector(".terminal-empty");
   if (empty) empty.remove();
 
   // Create or get log container
@@ -430,13 +495,13 @@ function handleComplete(data) {
   document.getElementById("btn-start").disabled = true;
   document.getElementById("btn-start").textContent = "已完成";
   document.getElementById("status-badge").textContent = "已完成";
-  document.getElementById("status-badge").className = "topbar-status completed";
+  document.getElementById("status-badge").className = "status-badge completed";
 
   const yaml = data.artifacts?.script_yaml || data.result?.script_yaml;
   if (yaml) {
     State.yamlContent = yaml;
     document.getElementById("yaml-content").textContent = yaml;
-    document.getElementById("result-panel").style.display = "flex";
+    document.getElementById("result-panel").style.display = "block";
   }
 }
 
@@ -519,7 +584,7 @@ function renderHITL(hitlMsg, artifacts) {
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2);margin-top:var(--space-2)">
             <div>
               <label>角色定位 <span style="color:var(--warning);font-size:var(--text-xs)">(重点审阅)</span></label>
-              <select data-scout-char="${i}" data-field="role" style="width:100%;padding:var(--space-2);background:var(--bg-elevated);border:1px solid var(--warning);border-radius:var(--radius-sm);color:var(--text-primary);font-size:var(--text-sm);min-height:40px">
+              <select data-scout-char="${i}" data-field="role" style="width:100%;padding:var(--space-2);background:var(--bg-secondary);border:1px solid var(--warning);border-radius:var(--radius-sm);color:var(--text-primary);font-size:var(--text-sm);min-height:40px">
                 <option value="protagonist" ${(c.role || '') === 'protagonist' ? 'selected' : ''}>主角 (Protagonist)</option>
                 <option value="antagonist" ${(c.role || '') === 'antagonist' ? 'selected' : ''}>反派 (Antagonist)</option>
                 <option value="supporting" ${(c.role || '') === 'supporting' ? 'selected' : ''}>配角 (Supporting)</option>
@@ -548,7 +613,7 @@ function renderHITL(hitlMsg, artifacts) {
               </div>
               <div>
                 <label>类型</label>
-                <select data-scout-loc="${i}" data-field="type" style="width:100%;padding:var(--space-2);background:var(--bg-elevated);border:1px solid var(--border-default);border-radius:var(--radius-sm);color:var(--text-primary);font-size:var(--text-sm);min-height:40px">
+                <select data-scout-loc="${i}" data-field="type" style="width:100%;padding:var(--space-2);background:var(--bg-secondary);border:1px solid var(--border-default);border-radius:var(--radius-sm);color:var(--text-primary);font-size:var(--text-sm);min-height:40px">
                   <option value="INT." ${loc.type === 'INT.' ? 'selected' : ''}>INT. (内景)</option>
                   <option value="EXT." ${loc.type === 'EXT.' ? 'selected' : ''}>EXT. (外景)</option>
                 </select>
@@ -573,6 +638,9 @@ function renderHITL(hitlMsg, artifacts) {
   }
 
   // ── 旧 HITL 兼容 ──
+  _legacyHitlData = JSON.parse(JSON.stringify(data));
+  _legacyHitlAgent = agent;
+
   let html = `
     <div class="hitl-header">
       <div class="hitl-icon">✋</div>
@@ -661,7 +729,7 @@ async function submitScoutHITL() {
       document.getElementById("btn-start").disabled = true;
       document.getElementById("btn-start").textContent = "运行中...";
       document.getElementById("status-badge").textContent = "继续执行中";
-      document.getElementById("status-badge").className = "topbar-status running";
+      document.getElementById("status-badge").className = "status-badge running";
       addLog("success", "设定已应用，Pipeline 继续执行");
       _scoutHitlData = null;
     } else {
@@ -683,41 +751,63 @@ async function skipScoutHITL() {
     document.getElementById("btn-start").disabled = true;
     document.getElementById("btn-start").textContent = "运行中...";
     document.getElementById("status-badge").textContent = "继续执行中";
-    document.getElementById("status-badge").className = "topbar-status running";
+    document.getElementById("status-badge").className = "status-badge running";
   } catch (e) {
     addLog("error", "跳过失败: " + e.message);
   }
 }
 
-async function submitHITL(agent) {
-  const edits = {};
-  document.querySelectorAll("[data-char]").forEach(el => {
-    const i = el.dataset.char;
-    if (!edits[i]) edits[i] = {};
-    edits[i][el.dataset.field] = el.value;
-  });
-  document.querySelectorAll("[data-scene]").forEach(el => {
-    const i = el.dataset.scene;
-    if (!edits[i]) edits[i] = {};
-    edits[i][el.dataset.field] = el.value;
-  });
+// 缓存旧 HITL 的原始数据，供 submitHITL 合并使用
+let _legacyHitlData = null;
+let _legacyHitlAgent = "";
 
+async function submitHITL(agent) {
   addLog("info", "提交人工编辑...");
 
   try {
-    await fetch(`${API_BASE}/api/sessions/${State.threadId}/hitl/submit`, {
+    const original = _legacyHitlData || {};
+    let payload = {};
+
+    if (agent === "character_agent" && original.characters) {
+      // 深克隆原始角色列表，合并用户编辑
+      const characters = JSON.parse(JSON.stringify(original.characters));
+      document.querySelectorAll("[data-char]").forEach(el => {
+        const i = parseInt(el.dataset.char);
+        if (isNaN(i) || !characters[i]) return;
+        const field = el.dataset.field;
+        if (!field) return;
+        if (field === "name" || field === "role" || field === "importance") {
+          characters[i][field] = el.value;
+        } else if (field === "aliases") {
+          characters[i].aliases = el.value.split(",").map(s => s.trim()).filter(Boolean);
+        } else if (field === "physical" || field === "personality") {
+          if (!characters[i].description) characters[i].description = {};
+          characters[i].description[field] = el.value;
+        }
+      });
+      payload = { characters };
+    } else if (agent === "scene_agent" && original.scenes) {
+      const scenes = JSON.parse(JSON.stringify(original.scenes));
+      document.querySelectorAll("[data-scene]").forEach(el => {
+        const i = parseInt(el.dataset.scene);
+        if (isNaN(i) || !scenes[i]) return;
+        const field = el.dataset.field;
+        if (field) scenes[i][field] = el.value;
+      });
+      payload = { scenes };
+    }
+
+    await fetch(`${API_BASE}/api/sessions/${State.threadId}/hitl/continue`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ edits }),
+      body: JSON.stringify(payload),
     });
     document.getElementById("hitl-panel").style.display = "none";
+    _legacyHitlData = null;
+    _legacyHitlAgent = "";
     addLog("success", "编辑已提交，继续执行");
 
-    // Resume pipeline
-    const btn = document.getElementById("btn-start");
-    btn.disabled = true;
-    btn.textContent = "运行中...";
-    await fetch(`${API_BASE}/api/sessions/${State.threadId}/start`, { method: "POST" });
+    // Pipeline 由后端通过 WebSocket 自动推送恢复，无需手动调用 /start
   } catch (e) {
     addLog("error", "提交编辑失败: " + e.message);
   }
@@ -726,11 +816,13 @@ async function submitHITL(agent) {
 async function skipHITL() {
   addLog("warn", "跳过人工编辑，继续执行");
   document.getElementById("hitl-panel").style.display = "none";
+  _legacyHitlData = null;
+  _legacyHitlAgent = "";
 
   const btn = document.getElementById("btn-start");
   btn.disabled = true;
   btn.textContent = "运行中...";
-  await fetch(`${API_BASE}/api/sessions/${State.threadId}/start`, { method: "POST" });
+  await fetch(`${API_BASE}/api/sessions/${State.threadId}/hitl/skip-continue`, { method: "POST" });
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -741,6 +833,8 @@ let ws = null;
 let wsSeq = 0;
 let reconnectTimer = null;
 let reconnectDelay = 1000;
+let reconnectCount = 0;
+const MAX_RECONNECT = 10;
 
 function connectWS(threadId) {
   disconnectWS();
@@ -751,6 +845,7 @@ function connectWS(threadId) {
   ws.onopen = () => {
     console.log("[WS] Connected");
     reconnectDelay = 1000;
+    reconnectCount = 0;
     addLog("info", "WebSocket 已连接");
 
     // Resync if reconnecting
@@ -800,18 +895,25 @@ function connectWS(threadId) {
   };
 
   ws.onclose = () => {
-    console.log(`[WS] Disconnected, reconnecting in ${reconnectDelay}ms`);
-    addLog("warn", `连接断开，${Math.round(reconnectDelay / 1000)}s 后重连`);
+    reconnectCount++;
+    if (reconnectCount > MAX_RECONNECT) {
+      console.log("[WS] Max reconnect attempts reached, giving up");
+      addLog("error", "WebSocket 重连失败次数过多，请刷新页面");
+      return;
+    }
+    console.log(`[WS] Disconnected, reconnecting in ${reconnectDelay}ms (attempt ${reconnectCount}/${MAX_RECONNECT})`);
+    addLog("warn", `连接断开，${Math.round(reconnectDelay / 1000)}s 后重连 (${reconnectCount}/${MAX_RECONNECT})`);
     reconnectTimer = setTimeout(() => connectWS(threadId), reconnectDelay);
     reconnectDelay = Math.min(reconnectDelay * 2, 30000);
   };
 
   ws.onerror = () => {
-    ws.close();
+    // Don't call close() here — onclose will fire naturally and trigger reconnection
   };
 }
 
 function disconnectWS() {
+  _stopProgressWatchdog();
   if (reconnectTimer) clearTimeout(reconnectTimer);
   reconnectTimer = null;
   if (ws) {
@@ -824,23 +926,30 @@ function disconnectWS() {
 // ── WS Message Handlers ────────────────────────────────
 
 function handleProgress(msg) {
+  _touchProgress();
   const agent = msg.agent;
-  const percent = msg.percent;
+  const percent = msg.percent ?? 0;
+  // 映射到 SMR 步骤
+  const agentMap = { "chapter_parser":"scout_agent", "character_agent":"hitl", "scene_agent":"map_agent", "script_agent":"map_agent" };
+  const mappedAgent = agentMap[agent] || agent;
 
   document.getElementById("progress-fill").style.width = (percent * 100) + "%";
   document.getElementById("progress-percent").textContent = Math.round(percent * 100) + "%";
 
   // 从 agent 推导 status 用于 UI 渲染
   const agentStatusMap = {
-    "scout_agent": "parsing",
-    "map_agent": "scene_segmenting",
-    "validator": "validating",
+    "chapter_parser": "parsing", "character_agent": "char_extracting",
+    "scene_agent": "scene_segmenting", "script_agent": "script_generating",
+    "scout_agent": "parsing", "hitl": "scout_hitl",
+    "map_agent": "scene_segmenting", "validator": "validating",
   };
   const derivedStatus = agentStatusMap[agent] || State.status;
   renderPipelineUI({ current_agent: agent, progress: percent }, derivedStatus);
 
   const agentNames = {
-    "scout_agent": "全局扫描 (Scout)",
+    "chapter_parser": "章节解析", "character_agent": "角色识别",
+    "scene_agent": "场景切分", "script_agent": "剧本生成",
+    "scout_agent": "全局侦察 (Scout)",
     "map_agent": "切片转换 (Map)",
     "validator": "校验合并 (Reduce)",
   };
@@ -859,18 +968,24 @@ function handleTokenStream(msg) {
 }
 
 function handleHITLPause(msg) {
+  _stopProgressWatchdog();
   addLog("warn", `Pipeline 暂停 — ${msg.reason || "需要人工干预"}`);
   document.getElementById("status-badge").textContent = "等待审阅";
-  document.getElementById("status-badge").className = "topbar-status paused";
+  document.getElementById("status-badge").className = "status-badge paused";
 
   renderHITL(msg, msg.data);
+  const hitlStatusMap = {
+    "character_agent": "char_hitl", "scene_agent": "scene_hitl",
+    "script_agent": "script_hitl", "scout_agent": "scout_hitl",
+  };
   renderPipelineUI(
     { current_agent: msg.agent, progress: State.progress },
-    msg.agent === "character_agent" ? "char_hitl" : "scene_hitl"
+    hitlStatusMap[msg.agent] || "paused"
   );
 }
 
 function handleStageComplete(msg) {
+  _touchProgress();
   const agentNames = {
     "scout_agent": "全局扫描完成",
     "map_agent": "切片转换完成",
@@ -880,16 +995,17 @@ function handleStageComplete(msg) {
 }
 
 function handleError(msg) {
+  _stopProgressWatchdog();
   addLog("error", msg.message || "未知错误");
   State.status = "error";
   document.getElementById("status-badge").textContent = "错误";
-  document.getElementById("status-badge").className = "topbar-status error";
+  document.getElementById("status-badge").className = "status-badge error";
   document.getElementById("btn-start").disabled = false;
   document.getElementById("btn-start").textContent = "重新转换";
 
   // Mark current step as error
   if (msg.agent) {
-    const step = document.querySelector(`.pipeline-step[data-agent="${msg.agent}"]`);
+    const step = document.querySelector(`.step[data-agent="${msg.agent}"]`);
     const icon = document.getElementById("icon-" + msg.agent);
     if (step) step.classList.add("error");
     if (icon) { icon.textContent = "✗"; }
@@ -897,14 +1013,15 @@ function handleError(msg) {
 }
 
 function handleWSComplete(msg) {
+  _stopProgressWatchdog();
   State.status = "completed";
   if (msg.result?.script_yaml) {
     State.yamlContent = msg.result.script_yaml;
     document.getElementById("yaml-content").textContent = msg.result.script_yaml;
-    document.getElementById("result-panel").style.display = "flex";
+    document.getElementById("result-panel").style.display = "block";
   }
   document.getElementById("status-badge").textContent = "已完成";
-  document.getElementById("status-badge").className = "topbar-status completed";
+  document.getElementById("status-badge").className = "status-badge completed";
   document.getElementById("progress-fill").style.width = "100%";
   document.getElementById("progress-percent").textContent = "100%";
   document.getElementById("btn-start").disabled = true;

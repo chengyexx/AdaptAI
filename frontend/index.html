@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AdaptAI — AI 小说转剧本</title>
-  <link rel="stylesheet" href="css/style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Space+Mono:ital@0;1&family=Lora:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
@@ -15,64 +15,72 @@
      LANDING VIEW
      ═══════════════════════════════════════════════════════ -->
 <div id="landing-view">
-  <div class="landing-container">
-    <!-- Hero -->
-    <div class="landing-hero">
-      <div class="landing-logo">
-        <div class="logo-icon">🎬</div>
-        <span class="logo-text">AdaptAI</span>
-      </div>
-      <h1>
-        <span class="hero-gradient">AI 小说转剧本</span>
-      </h1>
-      <p class="subtitle">
-        将小说文本智能转换为结构化 YAML 剧本，
-        支持章节解析、角色识别、场景切分、人机协同编辑
-      </p>
-      <div class="feature-pills">
-        <span class="feature-pill"><span class="pill-dot"></span>智能解析</span>
-        <span class="feature-pill"><span class="pill-dot"></span>角色识别</span>
-        <span class="feature-pill"><span class="pill-dot"></span>场景切分</span>
-        <span class="feature-pill"><span class="pill-dot"></span>人机协同</span>
-      </div>
-    </div>
+  <div class="landing-grid">
 
-    <!-- Input Card -->
-    <div class="input-card">
-      <div class="mode-tabs">
-        <button class="mode-tab active" data-mode="paste">粘贴文本</button>
-        <button class="mode-tab" data-mode="upload">上传文件</button>
+    <!-- Hero -->
+    <header class="landing-hero">
+      <p class="landing-eyebrow">AI-Powered Adaptation</p>
+      <h1>小说转剧本</h1>
+      <p class="landing-desc">
+        输入 3 个章节以上的小说文本，AI 将自动识别章节结构、
+        提取角色档案、逐块生成结构化 YAML 剧本，并在关键节点
+        <em>暂停等待人类审阅</em>，确保改编质量。
+      </p>
+    </header>
+
+    <!-- Input Panel -->
+    <div class="landing-input">
+
+      <!-- Mode tabs -->
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-mode="paste" role="tab" aria-selected="true">粘贴文本</button>
+        <button class="tab" data-mode="upload" role="tab" aria-selected="false">上传文件</button>
       </div>
 
       <!-- Paste -->
       <div class="paste-area" id="paste-area">
         <textarea
           id="novel-text"
-          placeholder="在此粘贴小说文本...
-
-支持自动识别章节分隔标记，例如：
-## 第一章
-第1章
-Chapter 1"
+          placeholder="在此粘贴小说文本…&#10;&#10;支持自动识别章节标题：&#10;第一章 / Chapter 1 / # 第一章&#10;&#10;最少需要 3 个章节以上。"
+          rows="10"
         ></textarea>
-        <div class="char-count">已输入 <span id="char-count">0</span> 字符</div>
+        <div class="char-count">
+          <span id="char-count">0</span> 字符
+          <span class="char-hint" id="char-hint"></span>
+        </div>
       </div>
 
       <!-- Upload -->
       <div class="upload-area" id="upload-area" style="display:none">
         <input type="file" id="file-input" accept=".txt,.md,.docx">
         <label for="file-input" class="upload-label">
-          <span class="upload-icon">📂</span>
-          <span class="upload-text" id="upload-text">点击选择文件或拖拽到此处</span>
-          <span class="upload-hint">支持 .txt / .md / .docx</span>
+          <svg class="upload-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <path d="M12 16V4M8 8l4-4 4 4"/>
+            <path d="M20 16v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2"/>
+          </svg>
+          <span class="upload-text" id="upload-text">选择文件或拖拽到此处</span>
+          <span class="upload-hint">.txt / .md / .docx</span>
         </label>
       </div>
 
-      <button class="btn-submit" id="btn-submit" onclick="submitNovel()">
-        开始转换 →
+      <!-- Actions -->
+      <button class="btn-primary" id="btn-submit" onclick="submitNovel()">
+        开始转换
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 8h10M9 4l4 4-4 4"/>
+        </svg>
       </button>
       <div class="error-msg" id="submit-error" style="display:none"></div>
     </div>
+
+    <!-- Footer -->
+    <footer class="landing-footer">
+      <span>Scout-Map-Reduce 架构</span>
+      <span class="footer-sep">·</span>
+      <span>双模型 DeepSeek-V3 + R1</span>
+      <span class="footer-sep">·</span>
+      <span>YAML Schema 校验</span>
+    </footer>
   </div>
 </div>
 
@@ -80,95 +88,100 @@ Chapter 1"
      WORKSPACE VIEW
      ═══════════════════════════════════════════════════════ -->
 <div id="workspace-view" class="view-hidden">
+
   <!-- Top Bar -->
   <header class="topbar">
-    <a class="topbar-logo" onclick="goHome()" title="返回首页">
-      <span class="logo-dot"></span>AdaptAI
-    </a>
-    <div class="topbar-progress">
+    <a class="topbar-brand" onclick="goHome()">AdaptAI</a>
+    <div class="topbar-center">
       <div class="progress-track">
         <div class="progress-fill" id="progress-fill" style="width:0%"></div>
       </div>
-      <span class="progress-percent" id="progress-percent">0%</span>
+      <span class="progress-text" id="progress-percent">0%</span>
     </div>
-    <span class="topbar-status" id="status-badge">等待启动</span>
+    <span class="status-badge" id="status-badge">等待启动</span>
   </header>
 
+  <!-- Body -->
   <div class="workspace-body">
+
     <!-- Pipeline Sidebar -->
-    <aside class="pipeline-sidebar" id="pipeline-sidebar">
-      <div class="sidebar-title">Pipeline 流程</div>
+    <aside class="pipeline-sidebar">
+      <p class="sidebar-label">Pipeline</p>
 
-      <div class="pipeline-step" data-agent="scout_agent">
-        <div class="step-indicator" id="icon-scout_agent">1</div>
-        <div class="step-info">
-          <span class="step-label">全局扫描 (Scout)</span>
-          <span class="step-desc">提取人物表 + 地点表</span>
+      <div class="step" data-agent="scout_agent">
+        <div class="step-circle" id="icon-scout_agent">1</div>
+        <div class="step-body">
+          <span class="step-name">全局侦察与建档</span>
+          <span class="step-detail">AI 通读章节，提取人物与地点</span>
         </div>
       </div>
 
-      <div class="pipeline-step" data-agent="map_agent">
-        <div class="step-indicator" id="icon-map_agent">2</div>
-        <div class="step-info">
-          <span class="step-label">切片转换 (Map)</span>
-          <span class="step-desc">逐块生成 YAML 场景</span>
+      <div class="step" data-agent="hitl">
+        <div class="step-circle" id="icon-hitl">2</div>
+        <div class="step-body">
+          <span class="step-name">设定集人工审查</span>
+          <span class="step-detail">确认或修正 AI 的提取结果</span>
         </div>
       </div>
 
-      <div class="pipeline-step" data-agent="validator">
-        <div class="step-indicator" id="icon-validator">3</div>
-        <div class="step-info">
-          <span class="step-label">校验合并 (Reduce)</span>
-          <span class="step-desc">Pydantic + R1 深度质检</span>
+      <div class="step" data-agent="map_agent">
+        <div class="step-circle" id="icon-map_agent">3</div>
+        <div class="step-body">
+          <span class="step-name">章节切片转换</span>
+          <span class="step-detail">携带全局设定逐块生成 YAML 场景</span>
         </div>
       </div>
 
-      <div class="pipeline-actions">
+      <div class="step" data-agent="validator">
+        <div class="step-circle" id="icon-validator">4</div>
+        <div class="step-body">
+          <span class="step-name">校验与剧本合卷</span>
+          <span class="step-detail">合并校验，R1 深度推理质检</span>
+        </div>
+      </div>
+
+      <div class="sidebar-footer">
         <button class="btn-start" id="btn-start" onclick="startPipeline()">开始转换</button>
       </div>
     </aside>
 
-    <!-- Content Area -->
-    <main class="content-area" id="content-area">
-      <!-- Terminal / Live Log -->
-      <div class="terminal-panel">
-        <div class="terminal-header">
-          <span class="terminal-dot red"></span>
-          <span class="terminal-dot yellow"></span>
-          <span class="terminal-dot green"></span>
-          <span class="terminal-title">AdaptAI Pipeline Log</span>
+    <!-- Main Content -->
+    <main class="main-content">
+
+      <!-- Terminal -->
+      <div class="terminal">
+        <div class="terminal-bar">
+          <span class="term-dot c-red"></span>
+          <span class="term-dot c-amber"></span>
+          <span class="term-dot c-green"></span>
+          <span class="term-label">AdaptAI Pipeline Log</span>
         </div>
         <div class="terminal-body" id="terminal-body">
-          <div class="empty-state">
-            <span class="empty-icon">▶</span>
-            <span class="empty-text">点击"开始转换"启动 AI Pipeline，实时日志将在此显示</span>
+          <div class="terminal-empty">
+            <span>点击左侧「开始转换」启动 AI Pipeline</span>
           </div>
         </div>
       </div>
 
-      <!-- HITL Panel (hidden by default) -->
+      <!-- HITL Panel -->
       <div class="hitl-panel" id="hitl-panel" style="display:none"></div>
 
-      <!-- Result Panel (hidden by default) -->
+      <!-- Result Panel -->
       <div class="result-panel" id="result-panel" style="display:none">
-        <div class="result-panel-header">
-          <span class="result-panel-title">YAML 剧本输出</span>
+        <div class="result-header">
+          <span class="result-title">YAML 剧本</span>
           <div class="result-actions">
-            <button class="btn-sm" onclick="copyYAML()">复制</button>
-            <button class="btn-sm" onclick="downloadYAML()">下载</button>
+            <button class="btn-ghost" onclick="copyYAML()">复制</button>
+            <button class="btn-ghost" onclick="downloadYAML()">下载</button>
           </div>
         </div>
-        <div class="result-content">
-          <pre id="yaml-content"></pre>
-        </div>
+        <pre class="result-body" id="yaml-content"></pre>
       </div>
+
     </main>
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════
-     SCRIPTS
-     ═══════════════════════════════════════════════════════ -->
 <script src="js/app.js"></script>
 </body>
 </html>

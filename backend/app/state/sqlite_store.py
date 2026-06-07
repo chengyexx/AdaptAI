@@ -2,6 +2,7 @@
 
 import aiosqlite
 import json
+from dataclasses import asdict
 from pathlib import Path
 from datetime import datetime, UTC
 
@@ -93,8 +94,13 @@ class SQLiteStateStore(StateRepository):
 
     @staticmethod
     def _serialize(obj) -> str:
-        """将 dataclass 序列化为 JSON，支持嵌套对象"""
-        return json.dumps(obj, default=vars, ensure_ascii=False)
+        """将 dataclass 序列化为 JSON，支持嵌套对象。
+        优先使用 dataclasses.asdict，回退到 vars + repr 用于未知类型。"""
+        try:
+            return json.dumps(asdict(obj), ensure_ascii=False, default=str)
+        except TypeError:
+            # asdict 失败（非 dataclass），回退到 vars
+            return json.dumps(obj, default=vars, ensure_ascii=False)
 
     @staticmethod
     def _row_to_state(row) -> SessionState:
@@ -105,6 +111,7 @@ class SQLiteStateStore(StateRepository):
         artifacts = Artifacts(
             chapters=artifacts_dict.get("chapters", []),
             characters=artifacts_dict.get("characters", []),
+            locations=artifacts_dict.get("locations", []),
             scenes=artifacts_dict.get("scenes", []),
             script_yaml=artifacts_dict.get("script_yaml"),
             adaptation_notes=artifacts_dict.get("adaptation_notes", []),

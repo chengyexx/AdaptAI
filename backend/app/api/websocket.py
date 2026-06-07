@@ -65,6 +65,13 @@ class ConnectionManager:
             "seq": self._next_seq(thread_id),
         })
 
+    async def send_log(self, thread_id: str, level: str, message: str):
+        """发送终端日志消息"""
+        await self._broadcast(thread_id, {
+            "type": "log", "level": level, "message": message,
+            "seq": self._next_seq(thread_id),
+        })
+
     async def handle_resync(self, thread_id: str, websocket: WebSocket, last_seq: int):
         """客户端重连后回放遗漏的事件（简化实现：仅回复当前状态）"""
         store = SQLiteStateStore()

@@ -13,14 +13,14 @@ from agents.scout_agent import ScoutAgent
 from agents.map_agent import MapAgent
 from agents.ai_validator import AIValidator
 from llm.factory import AdapterFactory
+from .base_pipeline import BasePipeline
 
 
-class ScoutMapReducePipeline:
+class ScoutMapReducePipeline(BasePipeline):
     """三阶段 Pipeline — Scout → [HITL Checkpoint] → Map → Reduce"""
 
     def __init__(self, state_store: SQLiteStateStore | None = None, ws_manager=None):
-        self.state_store = state_store or SQLiteStateStore()
-        self.ws_manager = ws_manager
+        super().__init__(state_store, ws_manager)
 
     async def execute(self, state: SessionState, resume_from: PipelineStatus | None = None) -> SessionState:
         """执行 Pipeline
@@ -97,7 +97,8 @@ class ScoutMapReducePipeline:
         state.pipeline_state.progress = 0.05
         await self._persist(state)
         await self._push_progress(tid, "scout_agent", 0.05)
-        await self._log(tid, "info", "🔍 Scout Phase: 全局扫描中，提取人物与地点...")
+        total_chars = sum(c.get("char_count", 0) for c in state.artifacts.chapters)
+        await self._log(tid, "info", f"🔍 Scout Phase: {len(state.artifacts.chapters)} 章节, 约 {total_chars} 字符, 调用 LLM 中...")
 
         scout = ScoutAgent()
         scout_result = await scout.run(
@@ -117,6 +118,7 @@ class ScoutMapReducePipeline:
         global_locations = scout_result.output.get("locations", [])
 
         state.artifacts.characters = global_characters
+        state.artifacts.locations = global_locations
         char_count = len(global_characters)
         loc_count = len(global_locations)
 
@@ -179,8 +181,15 @@ class ScoutMapReducePipeline:
                 f"{c.get('description',{}).get('personality','?')}{rel_text}"
             )
         characters_ctx = "\n".join(character_lines)
-        global_locations = state.pipeline_state.checkpoint_stack if hasattr(state, '_locations') else []
-        locations_ctx = ""  # 简化：从 characters 中提取的地点信息有限
+        # 构建地点上下文
+        location_lines = []
+        locs = state.artifacts.locations
+        for loc in locs:
+            location_lines.append(
+                f"- [{loc.get('id','?')}] {loc.get('name','?')} "
+                f"({loc.get('type','?')}): {loc.get('description','?')[:60]}"
+            )
+        locations_ctx = "\n".join(location_lines) if location_lines else "(无地点数据)"
 
         # 切片
         chapters = state.artifacts.chapters
@@ -320,10 +329,6 @@ class ScoutMapReducePipeline:
 
         return state
 
-    # ═══════════════════════════════════════════════════════
-    # Helpers
-    # ═══════════════════════════════════════════════════════
-
     @staticmethod
     def _slice_chapters(chapters: list) -> list[tuple[str, str]]:
         chunks = []
@@ -346,54 +351,3 @@ class ScoutMapReducePipeline:
                 if current.strip():
                     chunks.append((f"{title} (第{part}部分)", current.strip()))
         return chunks
-
-    async def _persist(self, state):
-        try:
-            await self.state_store.save(state)
-        except Exception:
-            pass
-
-    async def _push_progress(self, tid, agent, percent):
-        if self.ws_manager:
-            try:
-                await self.ws_manager.send_progress(tid, agent, percent)
-            except Exception:
-                pass
-
-    async def _push_stage_complete(self, tid, agent):
-        if self.ws_manager:
-            try:
-                await self.ws_manager.send_stage_complete(tid, agent, {"agent": agent})
-            except Exception:
-                pass
-
-    async def _push_error(self, tid, agent, message):
-        if self.ws_manager:
-            try:
-                await self.ws_manager.send_error(tid, agent, message, recoverable=True)
-            except Exception:
-                pass
-
-    async def _push_complete(self, tid, state):
-        if self.ws_manager:
-            try:
-                await self.ws_manager.send_complete(tid, {
-                    "thread_id": state.thread_id,
-                    "status": state.status.value,
-                    "script_yaml": state.artifacts.script_yaml,
-                    "characters": state.artifacts.characters,
-                    "scenes": state.artifacts.scenes,
-                })
-            except Exception:
-                pass
-
-    async def _log(self, tid, level, message):
-        if self.ws_manager:
-            try:
-                await self.ws_manager._broadcast(tid, {
-                    "type": "log",
-                    "level": level,
-                    "message": message,
-                })
-            except Exception:
-                pass

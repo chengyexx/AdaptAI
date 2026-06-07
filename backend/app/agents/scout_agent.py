@@ -14,7 +14,7 @@ class ScoutAgent(BaseAgent):
     """
 
     agent_id = "scout_agent"
-    confidence_threshold = 0.6
+    confidence_threshold = 0.7  # 与项目全局阈值保持一致
 
     def __init__(self):
         template_dir = (
