@@ -1,0 +1,13 @@
+请将以下小说片段改编为 YAML 格式的结构化剧本场景。
+
+【全局上下文 — 角色与地点参考】
+已知角色（请使用角色ID引用）：
+{characters_context}
+
+已知地点：
+{locations_context}
+
+【待改编的小说文本】
+{chunk_text}
+
+请严格按照系统指令中的 YAML Schema 输出，不要包含任何 markdown 标记。

@@ -11,6 +11,7 @@ class PipelineStatus(str, Enum):
     CREATED = "created"
     PARSING = "parsing"
     PARSED = "parsed"
+    SCOUT_HITL = "scout_hitl"            # ⏸ Scout 后暂停，等待人类审阅
     CHAR_EXTRACTING = "char_extracting"
     CHAR_HITL = "char_hitl"
     CHAR_DONE = "char_done"
@@ -40,6 +41,7 @@ class Artifacts:
     """Pipeline 中间产物 — 轻量字段内联，大文本存指针"""
     chapters: list = field(default_factory=list)     # [{index, title, summary, char_count, text_ptr}]
     characters: list = field(default_factory=list)   # [{id, name, ...}]
+    locations: list = field(default_factory=list)    # [{id, name, type, description}]
     scenes: list = field(default_factory=list)       # [{scene_id, ...}]
     script_yaml: str | None = None                   # 最终剧本 YAML
     adaptation_notes: list = field(default_factory=list)

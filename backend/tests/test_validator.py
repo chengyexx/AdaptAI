@@ -72,7 +72,7 @@ def test_missing_action_fails():
     }
     result = validator.validate(screenplay)
     assert result["passed"] is False
-    assert any("action" in e for e in result["errors"])
+    assert any("action" in e or "动作" in e for e in result["errors"])
 
 
 def test_empty_scenes_fails():

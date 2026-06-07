@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import AsyncMock, patch
 from state.models import SessionState, PipelineStatus, Artifacts
 from state.sqlite_store import SQLiteStateStore
-from orchestrator.pipeline import Pipeline
+from orchestrator.pipeline import HappyPathPipeline
 
 
 @pytest.fixture
@@ -32,7 +32,7 @@ def test_chapter_parsing_step(state_with_text, state_store, tmp_path):
             "token_usage": {"output": 10},
         })()
 
-        pipeline = Pipeline(state_store)
+        pipeline = HappyPathPipeline(state_store)
         import asyncio
         result = asyncio.run(pipeline.execute(state_with_text))
 

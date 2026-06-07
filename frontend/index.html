@@ -1,88 +1,196 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 小说转剧本工具</title>
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-    <script defer src="https://unpkg.com/alpinejs@3.13.5/dist/cdn.min.js"></script>
-    <link rel="stylesheet" href="/static/css/style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AdaptAI — AI 小说转剧本</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Space+Mono:ital@0;1&family=Lora:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-    <main class="landing">
-        <h1>AI 小说转剧本工具</h1>
-        <p class="subtitle">将小说文本自动转换为结构化 YAML 剧本，支持人机协同编辑</p>
 
-        <div class="input-section" x-data="uploadForm()">
-            <div class="mode-tabs">
-                <button @click="mode = 'paste'" :class="{ active: mode === 'paste' }">粘贴文本</button>
-                <button @click="mode = 'upload'" :class="{ active: mode === 'upload' }">上传文件</button>
-            </div>
+<!-- ═══════════════════════════════════════════════════════
+     LANDING VIEW
+     ═══════════════════════════════════════════════════════ -->
+<div id="landing-view">
+  <div class="landing-grid">
 
-            <div x-show="mode === 'paste'" class="paste-area">
-                <textarea id="novel-text" x-model="text" placeholder="在此粘贴小说文本...&#10;&#10;支持自动识别章节分隔标记，如：&#10;## 第一章&#10;第1章&#10;Chapter 1" rows="15"></textarea>
-                <div class="char-count">已输入 <span x-text="text.length"></span> 字符</div>
-            </div>
+    <!-- Hero -->
+    <header class="landing-hero">
+      <p class="landing-eyebrow">AI-Powered Adaptation</p>
+      <h1>小说转剧本</h1>
+      <p class="landing-desc">
+        输入 3 个章节以上的小说文本，AI 将自动识别章节结构、
+        提取角色档案、逐块生成结构化 YAML 剧本，并在关键节点
+        <em>暂停等待人类审阅</em>，确保改编质量。
+      </p>
+    </header>
 
-            <div x-show="mode === 'upload'" class="upload-area">
-                <input type="file" id="file-input" accept=".txt,.md,.docx" @change="handleFile($event)" />
-                <label for="file-input" class="upload-label">
-                    <span x-text="fileName || '点击选择文件或拖拽到此处'"></span>
-                    <span class="upload-hint">支持 .txt / .md / .docx</span>
-                </label>
-            </div>
+    <!-- Input Panel -->
+    <div class="landing-input">
 
-            <button class="btn-primary" @click="submit" :disabled="submitting">
-                <span x-show="!submitting">开始转换 →</span>
-                <span x-show="submitting">提交中...</span>
-            </button>
-            <div x-show="error" class="error-msg" x-text="error"></div>
+      <!-- Mode tabs -->
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-mode="paste" role="tab" aria-selected="true">粘贴文本</button>
+        <button class="tab" data-mode="upload" role="tab" aria-selected="false">上传文件</button>
+      </div>
+
+      <!-- Paste -->
+      <div class="paste-area" id="paste-area">
+        <textarea
+          id="novel-text"
+          placeholder="在此粘贴小说文本…&#10;&#10;支持自动识别章节标题：&#10;第一章 / Chapter 1 / # 第一章&#10;&#10;最少需要 3 个章节以上。"
+          rows="10"
+        ></textarea>
+        <div class="char-count">
+          <span id="char-count">0</span> 字符
+          <span class="char-hint" id="char-hint"></span>
         </div>
+      </div>
+
+      <!-- Upload -->
+      <div class="upload-area" id="upload-area" style="display:none">
+        <input type="file" id="file-input" accept=".txt,.md,.docx">
+        <label for="file-input" class="upload-label">
+          <svg class="upload-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <path d="M12 16V4M8 8l4-4 4 4"/>
+            <path d="M20 16v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2"/>
+          </svg>
+          <span class="upload-text" id="upload-text">选择文件或拖拽到此处</span>
+          <span class="upload-hint">.txt / .md / .docx</span>
+        </label>
+      </div>
+
+      <!-- Actions -->
+      <button class="btn-primary" id="btn-submit" onclick="submitNovel()">
+        开始转换
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 8h10M9 4l4 4-4 4"/>
+        </svg>
+      </button>
+      <div class="error-msg" id="submit-error" style="display:none"></div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="landing-footer">
+      <span>Scout-Map-Reduce 架构</span>
+      <span class="footer-sep">·</span>
+      <span>双模型 DeepSeek-V3 + R1</span>
+      <span class="footer-sep">·</span>
+      <span>YAML Schema 校验</span>
+    </footer>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     WORKSPACE VIEW
+     ═══════════════════════════════════════════════════════ -->
+<div id="workspace-view" class="view-hidden">
+
+  <!-- Top Bar -->
+  <header class="topbar">
+    <a class="topbar-brand" onclick="goHome()">AdaptAI</a>
+    <div class="topbar-center">
+      <div class="progress-track">
+        <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+      </div>
+      <span class="progress-text" id="progress-percent">0%</span>
+    </div>
+    <span class="status-badge" id="status-badge">等待启动</span>
+  </header>
+
+  <!-- Body -->
+  <div class="workspace-body">
+
+    <!-- Pipeline Sidebar -->
+    <aside class="pipeline-sidebar">
+      <p class="sidebar-label">Pipeline</p>
+
+      <div class="step" data-agent="scout_agent">
+        <div class="step-circle" id="icon-scout_agent">1</div>
+        <div class="step-body">
+          <span class="step-name">全局侦察与建档</span>
+          <span class="step-detail">AI 通读章节，提取人物与地点</span>
+        </div>
+      </div>
+
+      <div class="step" data-agent="hitl">
+        <div class="step-circle" id="icon-hitl">2</div>
+        <div class="step-body">
+          <span class="step-name">设定集人工审查</span>
+          <span class="step-detail">确认或修正 AI 的提取结果</span>
+        </div>
+      </div>
+
+      <div class="step" data-agent="map_agent">
+        <div class="step-circle" id="icon-map_agent">3</div>
+        <div class="step-body">
+          <span class="step-name">章节切片转换</span>
+          <span class="step-detail">携带全局设定逐块生成 YAML 场景</span>
+        </div>
+      </div>
+
+      <div class="step" data-agent="validator">
+        <div class="step-circle" id="icon-validator">4</div>
+        <div class="step-body">
+          <span class="step-name">校验与剧本合卷</span>
+          <span class="step-detail">合并校验，R1 深度推理质检</span>
+        </div>
+      </div>
+
+      <div class="sidebar-footer">
+        <button class="btn-start" id="btn-start" onclick="startPipeline()">开始转换</button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+
+      <!-- Terminal -->
+      <div class="terminal">
+        <div class="terminal-bar">
+          <span class="term-dot c-red"></span>
+          <span class="term-dot c-amber"></span>
+          <span class="term-dot c-green"></span>
+          <span class="term-label">AdaptAI Pipeline Log</span>
+        </div>
+        <div class="terminal-body" id="terminal-body">
+          <div class="terminal-empty">
+            <span>点击左侧「开始转换」启动 AI Pipeline</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- HITL Panel -->
+      <div class="hitl-panel" id="hitl-panel" style="display:none"></div>
+
+      <!-- Result Panel -->
+      <div class="result-panel" id="result-panel" style="display:none">
+        <div class="result-header">
+          <div class="result-tabs">
+            <button class="result-tab active" data-tab="characters" onclick="switchResultTab('characters')">👥 角色</button>
+            <button class="result-tab" data-tab="scenes" onclick="switchResultTab('scenes')">🎬 场景</button>
+            <button class="result-tab" data-tab="yaml" onclick="switchResultTab('yaml')">📄 YAML</button>
+          </div>
+          <div class="result-actions">
+            <button class="btn-ghost" onclick="openDualReader()">📖 双栏阅读</button>
+            <button class="btn-ghost" onclick="copyYAML()">复制</button>
+            <button class="btn-ghost" onclick="downloadYAML()">下载</button>
+          </div>
+        </div>
+        <div class="result-tab-content active" id="tab-characters"></div>
+        <div class="result-tab-content" id="tab-scenes"></div>
+        <div class="result-tab-content" id="tab-yaml">
+          <pre class="result-body" id="yaml-content"></pre>
+        </div>
+      </div>
+
     </main>
+  </div>
+</div>
 
-    <script>
-    function uploadForm() {
-        return {
-            mode: 'paste',
-            text: '',
-            fileName: '',
-            fileContent: null,
-            submitting: false,
-            error: '',
-
-            handleFile(event) {
-                const file = event.target.files[0];
-                if (!file) return;
-                this.fileName = file.name;
-                const reader = new FileReader();
-                reader.onload = (e) => { this.fileContent = e.target.result; };
-                reader.readAsText(file);
-            },
-
-            async submit() {
-                this.error = '';
-                this.submitting = true;
-                try {
-                    const formData = new FormData();
-                    if (this.mode === 'paste') {
-                        if (!this.text.trim()) { this.error = '请输入小说文本'; this.submitting = false; return; }
-                        formData.append('text', this.text);
-                    } else {
-                        if (!this.fileContent) { this.error = '请选择文件'; this.submitting = false; return; }
-                        formData.append('text', this.fileContent);
-                    }
-                    const resp = await fetch('/api/sessions', { method: 'POST', body: formData });
-                    if (!resp.ok) { const d = await resp.json(); throw new Error(d.detail || '创建失败'); }
-                    const data = await resp.json();
-                    window.location.href = '/static/workspace.html?tid=' + data.thread_id;
-                } catch (e) {
-                    this.error = e.message;
-                } finally {
-                    this.submitting = false;
-                }
-            }
-        };
-    }
-    </script>
+<script src="js/app.js"></script>
 </body>
 </html>

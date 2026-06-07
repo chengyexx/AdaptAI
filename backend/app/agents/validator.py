@@ -37,8 +37,13 @@ class Validator:
                     errors.append(f"场景 {sid}: heading 缺少 location")
                 if "time_of_day" not in heading:
                     errors.append(f"场景 {sid}: heading 缺少 time_of_day")
-            if "action" not in scene or not scene.get("action"):
-                errors.append(f"场景 {sid}: 缺少 action（至少需要一个动作块）")
+            # 兼容 HappyPath ("action") 和 SMR ("plot_actions") 两种输出
+            # 注意：不能用 `or`，因为空列表是 falsy 但含义不同
+            action_field = scene.get("action")
+            if action_field is None:
+                action_field = scene.get("plot_actions", [])
+            if not action_field:
+                errors.append(f"场景 {sid}: 缺少动作块")
 
             # 2. 交叉引用校验
             for cid in scene.get("characters_present", []):
@@ -47,8 +52,11 @@ class Validator:
                         f"场景 {sid}: 角色 '{cid}' 不在 dramatis_personae 中"
                     )
 
-            # 4. 对白归属校验
-            for d in scene.get("dialogue", []):
+            # 4. 对白归属校验（兼容 "dialogue" 和 "dialogues"）
+            dialogues = scene.get("dialogue")
+            if dialogues is None:
+                dialogues = scene.get("dialogues", [])
+            for d in dialogues:
                 speaker = d.get("character_id", "")
                 if char_ids and speaker not in char_ids:
                     errors.append(
@@ -70,7 +78,7 @@ class Validator:
 
         # 对白覆盖率检查
         scenes_with_dialogue = sum(
-            1 for s in scenes if s.get("dialogue")
+            1 for s in scenes if s.get("dialogue") or s.get("dialogues")
         )
         if len(scenes) > 3 and scenes_with_dialogue < len(scenes) * 0.3:
             warnings.append(
