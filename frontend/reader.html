@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>双栏阅读 — AdaptAI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Noto+Serif+SC:wght@400;600;700&family=Noto+Sans+SC:wght@300;400;500&family=Space+Mono:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root {
+      --novel-font: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', Georgia, serif;
+      --screenplay-font: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+      --mono-font: 'JetBrains Mono', 'Space Mono', 'SF Mono', 'Consolas', monospace;
+      --display-font: 'Cormorant Garamond', 'Times New Roman', Georgia, serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--screenplay-font);
+      background: #f5f4f1;
+      color: #1c1c1c;
+      overflow: hidden;
+    }
+
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #d4d0cb; border-radius: 0; }
+    ::-webkit-scrollbar-thumb:hover { background: #a09b95; }
+
+    .novel-paragraph {
+      transition: background-color 600ms cubic-bezier(0.22, 0.61, 0.36, 1),
+                  color 600ms cubic-bezier(0.22, 0.61, 0.36, 1),
+                  box-shadow 600ms cubic-bezier(0.22, 0.61, 0.36, 1);
+      border-left: 2px solid transparent;
+    }
+
+    .novel-paragraph.active {
+      background-color: #eeedeb;
+      color: #111;
+      border-left-color: #1c1c1c;
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,0.03);
+    }
+
+    .novel-paragraph.dimmed {
+      color: #bfbbb5;
+    }
+
+    .scene-card {
+      transition: border-color 400ms cubic-bezier(0.22, 0.61, 0.36, 1),
+                  box-shadow 400ms cubic-bezier(0.22, 0.61, 0.36, 1),
+                  background-color 400ms cubic-bezier(0.22, 0.61, 0.36, 1);
+    }
+
+    .scene-card:hover {
+      border-color: #8c8882 !important;
+      box-shadow: 0 0 0 1px rgba(0,0,0,0.06), 0 2px 12px rgba(0,0,0,0.04);
+    }
+
+    .scene-card.linked-active {
+      border-color: #3d3a36 !important;
+      background-color: #fafaf8;
+      box-shadow: 0 0 0 1px rgba(0,0,0,0.08), 0 2px 16px rgba(0,0,0,0.06);
+    }
+
+    .scene-card.locked {
+      border-color: #1c1c1c !important;
+      box-shadow: 0 0 0 2px rgba(0,0,0,0.12), 0 4px 20px rgba(0,0,0,0.08);
+    }
+
+    .dialogue-line {
+      padding-left: 1.5rem;
+      border-left: 1px solid #e5e2dd;
+      margin: 0.5rem 0;
+    }
+
+    .dialogue-line .character-tag {
+      font-family: var(--mono-font);
+      font-size: 0.6875rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: #6b6762;
+    }
+
+    .dialogue-line .line-text {
+      font-family: var(--novel-font);
+      margin-top: 0.125rem;
+      line-height: 1.6;
+    }
+
+    .action-block {
+      font-family: var(--novel-font);
+      font-size: 0.875rem;
+      line-height: 1.75;
+      color: #4a4640;
+      margin: 0.75rem 0;
+      font-style: italic;
+    }
+
+    .shot-hint {
+      font-family: var(--mono-font);
+      font-size: 0.625rem;
+      color: #a09b95;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    /* Loading skeleton */
+    @keyframes shimmer {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+    .skeleton {
+      background: linear-gradient(90deg, #e8e5e0 25%, #f0ede9 50%, #e8e5e0 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: 2px;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <!-- Loading State -->
+    <div v-if="loading" class="flex items-center justify-center h-screen bg-[#fafaf8]">
+      <div class="text-center">
+        <div class="font-mono text-[10px] tracking-[0.2em] text-[#a09b95] uppercase mb-6">AdaptAI · Dual-Pane Reader</div>
+        <div class="w-8 h-8 border-2 border-[#d4d0cb] border-t-[#1c1c1c] rounded-full mx-auto animate-spin mb-4"></div>
+        <p class="font-serif text-sm text-[#6b6762]">加载会话数据...</p>
+      </div>
+    </div>
+
+    <!-- Error State -->
+    <div v-else-if="error" class="flex items-center justify-center h-screen bg-[#fafaf8]">
+      <div class="text-center max-w-md">
+        <div class="font-mono text-[10px] tracking-[0.2em] text-[#a09b95] uppercase mb-6">AdaptAI · Dual-Pane Reader</div>
+        <p class="font-serif text-lg text-[#1c1c1c] mb-2">无法加载数据</p>
+        <p class="text-sm text-[#9a9590] mb-6">{{ error }}</p>
+        <button onclick="location.reload()" class="px-6 py-2 border border-[#d4d0cb] rounded-sm font-mono text-xs text-[#6b6762] hover:border-[#1c1c1c] hover:text-[#1c1c1c] transition-colors">
+          重试
+        </button>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <template v-else>
+      <!-- Top Status Bar -->
+      <div class="h-8 bg-[#1c1c1c] text-[#9a9590] flex items-center px-5 font-mono text-[11px] tracking-wider select-none shrink-0">
+        <span class="text-[#d4d0cb] font-medium font-serif italic">AdaptAI</span>
+        <span class="mx-3 text-[#3d3a36]">|</span>
+        <span>DUAL-PANE READER</span>
+        <span class="ml-auto flex items-center gap-4">
+          <span>{{ activeConnectionInfo }}</span>
+          <span v-if="lockedSceneId" class="flex items-center gap-1">
+            <span class="inline-block w-1.5 h-1.5 rounded-full bg-[#c44536]"></span>
+            LOCKED
+          </span>
+        </span>
+      </div>
+
+      <!-- Dual-Pane Body -->
+      <div class="flex" style="height: calc(100vh - 2rem);">
+        <!-- Left: Novel -->
+        <div class="w-[40%] overflow-y-auto bg-[#fafaf8] border-r border-[#e8e5e0] relative" style="scroll-behavior:smooth">
+          <div class="sticky top-0 z-10 bg-[#fafaf8] border-b border-[#e8e5e0] px-8 py-5">
+            <div class="flex items-center gap-3">
+              <span class="font-mono text-[10px] tracking-[0.2em] text-[#a09b95] uppercase">Original</span>
+              <span class="text-[#e5e2dd]">&ndash;</span>
+              <span class="font-serif text-lg font-semibold text-[#1c1c1c] leading-tight">{{ title }}</span>
+            </div>
+            <div class="mt-2 text-xs text-[#9a9590] font-mono">
+              <span>{{ novelParagraphs.length }} 段落</span>
+              <span class="mx-2 text-[#d4d0cb]">|</span>
+              <span>{{ highlightedCount }} 已关联</span>
+            </div>
+            <div v-if="effectiveActiveScene" class="mt-3 flex items-center gap-2 text-xs text-[#6b6762] font-mono">
+              <span class="inline-block w-1 h-1 rounded-full bg-[#1c1c1c]"></span>
+              <span>&larr; {{ effectiveActiveScene.sceneTitle }}</span>
+            </div>
+          </div>
+
+          <div class="px-8 py-6 space-y-0">
+            <div
+              v-for="(para, idx) in novelParagraphs"
+              :key="para.id"
+              class="novel-paragraph px-4 py-5 -mx-4 rounded-sm cursor-default"
+              :class="{
+                'active': highlightedParagraphIds.has(para.id),
+                'dimmed': highlightedParagraphIds.size > 0 && !highlightedParagraphIds.has(para.id)
+              }"
+              @click="handleParagraphClick(para.id)"
+            >
+              <p class="font-serif text-[15px] leading-[1.85] tracking-[0.01em] text-[#2d2a26]">
+                {{ para.text }}
+              </p>
+              <span class="block mt-1.5 font-mono text-[10px] text-[#c4bfb8] tracking-wider">
+                {{ para.label || `&sect; ${idx + 1}` }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Screenplay -->
+        <div ref="screenplayPanel" class="w-[60%] overflow-y-auto bg-[#f5f4f1] relative" style="scroll-behavior:smooth">
+          <div class="sticky top-0 z-10 bg-[#f5f4f1] border-b border-[#e8e5e0] px-8 py-5">
+            <div class="flex items-center gap-3">
+              <span class="font-mono text-[10px] tracking-[0.2em] text-[#a09b95] uppercase">Screenplay</span>
+              <span class="text-[#e5e2dd]">&ndash;</span>
+              <span class="font-serif text-lg font-semibold text-[#1c1c1c] leading-tight">{{ title }} · 剧本</span>
+            </div>
+            <div class="mt-2 text-xs text-[#9a9590] font-mono">
+              <span>{{ screenplayScenes.length }} 场景</span>
+              <span class="mx-2 text-[#d4d0cb]">|</span>
+              <span>滚动联动 &bull; 点击锁定</span>
+            </div>
+          </div>
+
+          <div class="px-8 py-6 space-y-6">
+            <div
+              v-for="(scene, idx) in screenplayScenes"
+              :key="scene.id"
+              :data-scene-id="scene.id"
+              :ref="el => setSceneRef(scene.id, el)"
+              class="scene-card bg-white border rounded-sm p-6 cursor-default"
+              :class="{
+                'linked-active': effectiveActiveSceneId === scene.id && lockedSceneId !== scene.id,
+                'locked': lockedSceneId === scene.id
+              }"
+              :style="{ borderColor: effectiveActiveSceneId === scene.id ? '#3d3a36' : '#e5e2dd' }"
+              @mouseenter="handleSceneHover(scene.id)"
+              @mouseleave="handleSceneLeave()"
+              @click="handleSceneClick(scene.id)"
+            >
+              <div class="flex items-start justify-between mb-4">
+                <div>
+                  <div class="flex items-center gap-2 mb-1">
+                    <span class="font-mono text-[11px] font-medium text-[#1c1c1c] tracking-wide">
+                      SCENE {{ String(idx + 1).padStart(2, '0') }}
+                    </span>
+                    <span class="inline-block w-1 h-1 rounded-full transition-colors duration-400"
+                      :class="effectiveActiveSceneId === scene.id ? 'bg-[#1c1c1c]' : 'bg-[#d4d0cb]'"
+                    ></span>
+                  </div>
+                  <h3 class="font-serif text-lg font-semibold text-[#1c1c1c] leading-snug">{{ scene.sceneTitle }}</h3>
+                </div>
+                <span v-if="lockedSceneId === scene.id" class="font-mono text-[9px] text-[#c44536] tracking-widest uppercase mt-1">&#9679; Locked</span>
+              </div>
+
+              <div v-if="scene.heading" class="font-mono text-[13px] font-medium text-[#1c1c1c] tracking-wide mb-3 pb-3 border-b border-[#f0ede8]">
+                {{ scene.heading }}
+              </div>
+
+              <div v-if="scene.action" class="action-block">{{ scene.action }}</div>
+
+              <div v-if="scene.shotHint" class="shot-hint mb-3">&#x25B3; {{ scene.shotHint }}</div>
+
+              <div v-if="scene.charactersPresent?.length" class="flex items-center gap-2 mb-3">
+                <span class="font-mono text-[9px] text-[#a09b95] tracking-wider uppercase">Cast</span>
+                <span v-for="char in scene.charactersPresent" :key="char"
+                  class="px-2 py-0.5 text-[10px] font-mono text-[#6b6762] bg-[#f5f4f1] rounded-sm tracking-wide">{{ char }}</span>
+              </div>
+
+              <div class="space-y-3">
+                <div v-for="(line, dIdx) in scene.dialogues" :key="dIdx" class="dialogue-line">
+                  <span class="character-tag">{{ line.character }}</span>
+                  <span v-if="line.emotion" class="text-[10px] text-[#a09b95] ml-1 font-mono tracking-wide">({{ line.emotion }})</span>
+                  <p class="line-text">{{ line.text }}</p>
+                </div>
+              </div>
+
+              <div class="mt-4 pt-3 border-t border-dotted border-[#e8e5e0] flex items-center gap-2">
+                <span class="font-mono text-[9px] text-[#a09b95] tracking-wider uppercase">Sources</span>
+                <span v-for="pid in scene.linkedParagraphs" :key="pid"
+                  class="text-[9px] font-mono px-1.5 py-0.5 rounded-sm tracking-wide transition-colors duration-500"
+                  :class="highlightedParagraphIds.has(pid) ? 'bg-[#1c1c1c] text-[#fafaf8]' : 'bg-[#f0ede8] text-[#9a9590]'"
+                >&sect;{{ getParagraphIndex(pid) + 1 }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom Hint -->
+      <div class="fixed bottom-0 left-0 right-0 h-6 bg-[#1c1c1c]/95 backdrop-blur flex items-center justify-center gap-6 font-mono text-[9px] text-[#6b6762] tracking-wider select-none z-50">
+        <span>SCROLL &rarr; 联动</span>
+        <span class="text-[#3d3a36]">|</span>
+        <span>HOVER &rarr; 预览</span>
+        <span class="text-[#3d3a36]">|</span>
+        <span>CLICK &rarr; 锁定</span>
+      </div>
+    </template>
+  </div>
+
+  <script>
+  const { createApp, ref, computed, onMounted, onUnmounted, nextTick } = Vue;
+
+  // ── API Config ──────────────────────────────────────────
+  const API_HOST = (() => {
+    try {
+      if (window.location.hostname && window.location.hostname !== "" && window.location.hostname !== "127.0.0.1") {
+        return window.location.origin;
+      }
+    } catch (_) {}
+    return "http://127.0.0.1:8000";
+  })();
+
+  // ── Get thread ID from URL ──────────────────────────────
+  const params = new URLSearchParams(window.location.search);
+  const THREAD_ID = params.get("tid");
+
+  createApp({
+    setup() {
+      // ── State ──────────────────────────────────────────
+      const loading = ref(true);
+      const error = ref(null);
+      const title = ref("未命名");
+      const novelParagraphs = ref([]);
+      const screenplayScenes = ref([]);
+
+      const activeSceneId = ref(null);
+      const hoveredSceneId = ref(null);
+      const lockedSceneId = ref(null);
+      const sceneRefs = ref({});
+      const screenplayPanel = ref(null);
+      const visibilityMap = ref({});
+      let observer = null;
+
+      // ── Computed ───────────────────────────────────────
+      const effectiveActiveSceneId = computed(() => {
+        if (lockedSceneId.value) return lockedSceneId.value;
+        if (hoveredSceneId.value) return hoveredSceneId.value;
+        return activeSceneId.value;
+      });
+
+      const effectiveActiveScene = computed(() => {
+        if (!effectiveActiveSceneId.value) return null;
+        return screenplayScenes.value.find(s => s.id === effectiveActiveSceneId.value) || null;
+      });
+
+      const highlightedParagraphIds = computed(() => {
+        if (!effectiveActiveSceneId.value) return new Set();
+        const s = screenplayScenes.value.find(sc => sc.id === effectiveActiveSceneId.value);
+        return new Set(s?.linkedParagraphs || []);
+      });
+
+      const highlightedCount = computed(() => highlightedParagraphIds.value.size);
+
+      const activeConnectionInfo = computed(() => {
+        if (!effectiveActiveScene.value) return '\u2014';
+        const s = effectiveActiveScene.value;
+        const idx = screenplayScenes.value.indexOf(s) + 1;
+        const count = s.linkedParagraphs.length;
+        return `SCENE ${String(idx).padStart(2, '0')} \u2194 ${count} SOURCE${count > 1 ? 'S' : ''}`;
+      });
+
+      // ── Data Adapter ───────────────────────────────────
+      function adaptSessionData(data) {
+        const chapters = data.artifacts?.chapters || data.chapters || [];
+        const scenes = data.artifacts?.scenes || data.scenes || [];
+        const characters = data.artifacts?.characters || data.characters || [];
+
+        // Build character name map
+        const charMap = {};
+        characters.forEach(c => {
+          charMap[c.id] = c.name || c.id;
+          charMap[c.name] = c.name;
+        });
+
+        // Parse novel title from first chapter
+        const novelTitle = chapters[0]?.title || data.title || "未命名";
+
+        // Convert chapters to paragraphs
+        const paragraphs = [];
+        chapters.forEach((ch, chIdx) => {
+          const text = ch.text || "";
+          const title = ch.title || `第${chIdx + 1}章`;
+
+          if (text.length <= 2000) {
+            paragraphs.push({
+              id: `ch${chIdx}`,
+              text: text,
+              label: title,
+            });
+          } else {
+            // Split long chapters into readable paragraphs
+            const parts = text.split(/\n{2,}/);
+            parts.forEach((part, pIdx) => {
+              if (part.trim()) {
+                paragraphs.push({
+                  id: `ch${chIdx}p${pIdx}`,
+                  text: part.trim(),
+                  label: `${title} (${pIdx + 1}/${parts.length})`,
+                });
+              }
+            });
+          }
+        });
+
+        // Convert scenes to screenplay format
+        const screenplayScenesArr = [];
+        scenes.forEach((s, i) => {
+          const h = s.heading || {};
+          const location = h.location || "";
+          const timeOfDay = h.time_of_day || h.timeOfDay || "";
+          const headingText = location
+            ? `${location.startsWith('INT') || location.startsWith('EXT') ? '' : 'INT./EXT.'} ${location}${timeOfDay ? ' — ' + timeOfDay : ''}`
+            : '';
+
+          // Handle action field (multiple formats)
+          let actionStr = "";
+          if (Array.isArray(s.plot_actions)) {
+            actionStr = s.plot_actions.join("\n");
+          } else if (Array.isArray(s.action)) {
+            actionStr = s.action.map(a => typeof a === 'string' ? a : a.text || '').join("\n");
+          } else if (typeof s.action === 'string') {
+            actionStr = s.action;
+          }
+
+          // Handle dialogues (multiple formats)
+          const dialogues = [];
+          const dlist = s.dialogues || s.dialogue || [];
+          dlist.forEach(d => {
+            const charId = d.character_id || d.character || '';
+            dialogues.push({
+              character: charMap[charId] || charId || '?',
+              emotion: d.emotion || d.emotion_or_action || '',
+              text: d.line || d.text || '',
+            });
+          });
+
+          // Character names
+          const charsPresent = (s.characters_present || []).map(id => charMap[id] || id);
+
+          // Shot hints
+          const shotsStr = (s.shots || []).map(sh => sh.type || sh.description || '').filter(Boolean).join(' / ');
+
+          // Linked paragraphs: map scene.chapter → paragraph IDs
+          const sceneChapter = s.chapter != null ? parseInt(s.chapter) - 1 : i;
+          const linkedIds = [];
+          if (paragraphs.length > 0) {
+            paragraphs.forEach(p => {
+              if (p.id.startsWith(`ch${sceneChapter}`)) {
+                linkedIds.push(p.id);
+              }
+            });
+            // If no match, link to a proportional paragraph
+            if (linkedIds.length === 0 && paragraphs.length > 0) {
+              const ratioIdx = Math.floor((i / Math.max(scenes.length, 1)) * paragraphs.length);
+              linkedIds.push(paragraphs[Math.min(ratioIdx, paragraphs.length - 1)].id);
+            }
+          }
+
+          screenplayScenesArr.push({
+            id: s.scene_id || `s${i + 1}`,
+            sceneTitle: s.scene_id || `第${i + 1}场`,
+            heading: headingText,
+            action: actionStr,
+            shotHint: shotsStr,
+            charactersPresent: charsPresent,
+            dialogues: dialogues,
+            linkedParagraphs: linkedIds,
+          });
+        });
+
+        return { title: novelTitle, paragraphs, scenes: screenplayScenesArr };
+      }
+
+      // ── Fetch Data ──────────────────────────────────────
+      async function fetchSession() {
+        if (!THREAD_ID) {
+          error.value = "缺少会话 ID 参数 (?tid=xxx)";
+          loading.value = false;
+          return;
+        }
+
+        try {
+          const resp = await fetch(`${API_HOST}/api/sessions/${THREAD_ID}`);
+          if (!resp.ok) {
+            const errData = await resp.json().catch(() => ({}));
+            throw new Error(errData.detail || `HTTP ${resp.status}`);
+          }
+
+          const data = await resp.json();
+          const adapted = adaptSessionData(data);
+
+          title.value = adapted.title;
+          novelParagraphs.value = adapted.paragraphs;
+          screenplayScenes.value = adapted.scenes;
+          loading.value = false;
+
+        } catch (e) {
+          error.value = e.message || "网络请求失败，请确认后端服务已启动";
+          loading.value = false;
+        }
+      }
+
+      // ── Methods ─────────────────────────────────────────
+      function setSceneRef(sceneId, el) { if (el) sceneRefs.value[sceneId] = el; }
+      function getParagraphIndex(paraId) { return novelParagraphs.value.findIndex(p => p.id === paraId); }
+
+      function handleSceneHover(sceneId) {
+        if (!lockedSceneId.value) hoveredSceneId.value = sceneId;
+      }
+      function handleSceneLeave() { hoveredSceneId.value = null; }
+
+      function handleSceneClick(sceneId) {
+        if (lockedSceneId.value === sceneId) {
+          lockedSceneId.value = null;
+        } else {
+          lockedSceneId.value = sceneId;
+          hoveredSceneId.value = null;
+        }
+      }
+
+      function handleParagraphClick(paraId) {
+        const scene = screenplayScenes.value.find(s => s.linkedParagraphs.includes(paraId));
+        if (scene && sceneRefs.value[scene.id]) {
+          lockedSceneId.value = scene.id;
+          nextTick(() => {
+            sceneRefs.value[scene.id]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          });
+        }
+      }
+
+      // ── IntersectionObserver ────────────────────────────
+      function setupObserver() {
+        if (!screenplayPanel.value) return;
+        observer = new IntersectionObserver(
+          (entries) => {
+            for (const entry of entries) {
+              const sceneId = entry.target.dataset.sceneId;
+              if (sceneId) {
+                visibilityMap.value = { ...visibilityMap.value, [sceneId]: entry.intersectionRatio };
+              }
+            }
+            let maxRatio = 0, maxId = null;
+            for (const [id, ratio] of Object.entries(visibilityMap.value)) {
+              if (ratio > maxRatio) { maxRatio = ratio; maxId = id; }
+            }
+            if (maxRatio > 0.15 && !hoveredSceneId.value && !lockedSceneId.value) {
+              activeSceneId.value = maxId;
+            }
+          },
+          {
+            root: screenplayPanel.value,
+            threshold: [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
+          }
+        );
+        nextTick(() => {
+          const cards = screenplayPanel.value?.querySelectorAll('[data-scene-id]');
+          cards?.forEach(card => observer?.observe(card));
+        });
+      }
+
+      function teardownObserver() { observer?.disconnect(); observer = null; }
+
+      // ── Lifecycle ───────────────────────────────────────
+      onMounted(async () => {
+        await fetchSession();
+        if (!error.value) {
+          nextTick(() => setupObserver());
+        }
+      });
+      onUnmounted(() => teardownObserver());
+
+      return {
+        loading, error, title,
+        novelParagraphs, screenplayScenes,
+        activeSceneId, hoveredSceneId, lockedSceneId,
+        sceneRefs, screenplayPanel,
+        effectiveActiveSceneId, effectiveActiveScene,
+        highlightedParagraphIds, highlightedCount, activeConnectionInfo,
+        setSceneRef, getParagraphIndex,
+        handleSceneHover, handleSceneLeave, handleSceneClick, handleParagraphClick,
+      };
+    }
+  }).mount('#app');
+  </script>
+</body>
+</html>

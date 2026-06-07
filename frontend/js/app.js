@@ -24,6 +24,8 @@ const State = {
   progress: 0,
   status: "",
   yamlContent: null,
+  characters: [],
+  scenes: [],
   view: "landing", // "landing" | "workspace"
 };
 
@@ -152,6 +154,8 @@ function resetWorkspace() {
   State.progress = 0;
   State.status = "";
   State.yamlContent = null;
+  State.characters = [];
+  State.scenes = [];
 
   document.getElementById("progress-fill").style.width = "0%";
   document.getElementById("progress-percent").textContent = "0%";
@@ -498,9 +502,15 @@ function handleComplete(data) {
   document.getElementById("status-badge").className = "status-badge completed";
 
   const yaml = data.artifacts?.script_yaml || data.result?.script_yaml;
-  if (yaml) {
-    State.yamlContent = yaml;
-    document.getElementById("yaml-content").textContent = yaml;
+  const characters = data.artifacts?.characters || data.result?.characters || [];
+  const scenes = data.artifacts?.scenes || data.result?.scenes || [];
+
+  State.yamlContent = yaml;
+  State.characters = characters;
+  State.scenes = scenes;
+
+  if (yaml || characters.length || scenes.length) {
+    renderResultTabs(characters, scenes, yaml);
     document.getElementById("result-panel").style.display = "block";
   }
 }
@@ -524,6 +534,119 @@ function downloadYAML() {
   a.click();
   URL.revokeObjectURL(url);
   addLog("success", "YAML 文件已下载");
+}
+
+/* ═══════════════════════════════════════════════════════════
+   RESULT PANEL — TABBED VIEW
+   ═══════════════════════════════════════════════════════════ */
+
+function openDualReader() {
+  if (!State.threadId) return;
+  const url = `reader.html?tid=${encodeURIComponent(State.threadId)}`;
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
+function switchResultTab(tabName) {
+  document.querySelectorAll(".result-tab").forEach(t => t.classList.remove("active"));
+  document.querySelectorAll(".result-tab-content").forEach(c => c.classList.remove("active"));
+  document.querySelector(`.result-tab[data-tab="${tabName}"]`).classList.add("active");
+  document.getElementById(`tab-${tabName}`).classList.add("active");
+}
+
+function renderResultTabs(characters, scenes, yaml) {
+  // ── Characters Tab ──
+  const charTab = document.getElementById("tab-characters");
+  if (characters.length > 0) {
+    let html = `<div class="char-grid">`;
+    characters.forEach(c => {
+      const desc = c.description || {};
+      const roleLabels = {
+        protagonist: "主角", antagonist: "反派", supporting: "配角",
+        minor: "龙套", cameo: "客串"
+      };
+      const role = desc.role || c.role || "";
+      const roleLabel = roleLabels[role] || role || "未标记";
+      const roleClass = role ? `role-badge role-${role}` : "role-badge";
+
+      const aliases = (c.aliases || []).filter(a => a && a !== c.name);
+      const aliasesText = aliases.length ? `别称: ${aliases.join("、")}` : "";
+
+      const personality = (desc.personality || "").slice(0, 80);
+      const physical = (desc.physical || "").slice(0, 60);
+
+      const relationships = (c.relationships || []).slice(0, 3);
+      let relHtml = "";
+      if (relationships.length) {
+        relHtml = '<div class="char-rels">';
+        relationships.forEach(r => {
+          const targetChar = characters.find(ch => ch.id === r.target_id);
+          const targetName = targetChar ? targetChar.name : (r.target_id || "?");
+          relHtml += `<span class="rel-tag">${r.type || "关联"} → ${esc(targetName)}</span>`;
+        });
+        relHtml += '</div>';
+      }
+
+      html += `
+        <div class="char-card">
+          <div class="char-card-header">
+            <span class="char-name">${esc(c.name || "未命名")}</span>
+            <span class="${roleClass}">${esc(roleLabel)}</span>
+            ${c.importance ? `<span class="importance-star">★ ${c.importance}</span>` : ""}
+          </div>
+          ${personality ? `<div class="char-trait">${esc(personality)}</div>` : ""}
+          ${physical ? `<div class="char-physical">${esc(physical)}</div>` : ""}
+          ${aliasesText ? `<div class="char-aliases">${esc(aliasesText)}</div>` : ""}
+          ${relHtml}
+        </div>`;
+    });
+    html += `</div>`;
+    charTab.innerHTML = html;
+  } else {
+    charTab.innerHTML = '<div class="empty-tab">暂无角色数据</div>';
+  }
+
+  // ── Scenes Tab ──
+  const sceneTab = document.getElementById("tab-scenes");
+  if (scenes.length > 0) {
+    let html = `<div class="scene-list">`;
+    scenes.forEach((s, i) => {
+      const h = s.heading || {};
+      const location = h.location || "未知地点";
+      const timeOfDay = h.time_of_day || h.timeOfDay || "";
+      const type = h.type || (location.startsWith("INT") ? "INT." : "EXT.");
+      const mood = s.mood || "";
+      const dialogues = s.dialogue || s.dialogues || [];
+      const action = s.action || s.plot_actions || s.actions || "";
+
+      html += `
+        <div class="scene-card">
+          <div class="scene-heading">
+            <span class="scene-id">${esc(s.scene_id || `s${i + 1}`)}</span>
+            <span class="scene-loc">${esc(type)} ${esc(location)}</span>
+            ${timeOfDay ? `<span class="scene-time">${esc(timeOfDay)}</span>` : ""}
+            ${mood ? `<span class="scene-mood">${esc(mood)}</span>` : ""}
+          </div>
+          ${action ? `<div class="scene-action">${esc(typeof action === "string" ? action.slice(0, 200) : JSON.stringify(action).slice(0, 200))}</div>` : ""}
+          ${dialogues.length ? `<div class="scene-dialogues">${dialogues.slice(0, 6).map(d => {
+            const speaker = d.character || d.speaker || "?";
+            const line = (d.line || d.text || "").slice(0, 100);
+            return `<div class="dl-line"><span class="dl-speaker">${esc(speaker)}</span><span class="dl-text">${esc(line)}</span></div>`;
+          }).join("")}</div>` : ""}
+          ${s.shots && s.shots.length ? `<div class="scene-shots">${s.shots.slice(0, 3).map(sh => `<span class="shot-tag">${esc(sh.type || sh)}</span>`).join("")}</div>` : ""}
+        </div>`;
+    });
+    html += `</div>`;
+    sceneTab.innerHTML = html;
+  } else {
+    sceneTab.innerHTML = '<div class="empty-tab">暂无场景数据</div>';
+  }
+
+  // ── YAML Tab ──
+  if (yaml) {
+    document.getElementById("yaml-content").textContent = yaml;
+  } else {
+    document.getElementById("yaml-content").textContent = "暂无 YAML 数据";
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -1015,11 +1138,20 @@ function handleError(msg) {
 function handleWSComplete(msg) {
   _stopProgressWatchdog();
   State.status = "completed";
-  if (msg.result?.script_yaml) {
-    State.yamlContent = msg.result.script_yaml;
-    document.getElementById("yaml-content").textContent = msg.result.script_yaml;
+
+  const yaml = msg.result?.script_yaml;
+  const characters = msg.result?.characters || [];
+  const scenes = msg.result?.scenes || [];
+
+  State.yamlContent = yaml;
+  State.characters = characters;
+  State.scenes = scenes;
+
+  if (yaml || characters.length || scenes.length) {
+    renderResultTabs(characters, scenes, yaml);
     document.getElementById("result-panel").style.display = "block";
   }
+
   document.getElementById("status-badge").textContent = "已完成";
   document.getElementById("status-badge").className = "status-badge completed";
   document.getElementById("progress-fill").style.width = "100%";

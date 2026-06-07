@@ -169,13 +169,22 @@
       <!-- Result Panel -->
       <div class="result-panel" id="result-panel" style="display:none">
         <div class="result-header">
-          <span class="result-title">YAML 剧本</span>
+          <div class="result-tabs">
+            <button class="result-tab active" data-tab="characters" onclick="switchResultTab('characters')">👥 角色</button>
+            <button class="result-tab" data-tab="scenes" onclick="switchResultTab('scenes')">🎬 场景</button>
+            <button class="result-tab" data-tab="yaml" onclick="switchResultTab('yaml')">📄 YAML</button>
+          </div>
           <div class="result-actions">
+            <button class="btn-ghost" onclick="openDualReader()">📖 双栏阅读</button>
             <button class="btn-ghost" onclick="copyYAML()">复制</button>
             <button class="btn-ghost" onclick="downloadYAML()">下载</button>
           </div>
         </div>
-        <pre class="result-body" id="yaml-content"></pre>
+        <div class="result-tab-content active" id="tab-characters"></div>
+        <div class="result-tab-content" id="tab-scenes"></div>
+        <div class="result-tab-content" id="tab-yaml">
+          <pre class="result-body" id="yaml-content"></pre>
+        </div>
       </div>
 
     </main>
