@@ -134,7 +134,6 @@ pytest -v
 - [YAML Schema 规格说明](docs/yaml-schema-specification.md) — 逐字段定义与设计原因
 - [设计规格书](docs/superpowers/specs/2026-06-05-novel-to-screenplay-design.md) — 完整架构设计
 - [实现计划](docs/superpowers/plans/2026-06-05-novel-to-screenplay-plan.md) — 开发路线
-- [审计报告](backend/AUDIT.md) — 代码审查结果与已知问题
 
 ## 设计原则
 
