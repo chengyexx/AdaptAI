@@ -1003,6 +1003,7 @@ body {
   color: var(--ink-soft);
   line-height: 1.6;
   margin-bottom: 0.5rem;
+  white-space: pre-line;
 }
 
 .scene-dialogues {

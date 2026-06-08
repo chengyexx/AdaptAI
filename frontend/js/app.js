@@ -643,7 +643,18 @@ function renderResultTabs(characters, scenes, yaml) {
       else { type = h.type || (location.startsWith("INT") ? "INT." : "EXT."); locOnly = location; }
       const mood = s.情绪基调 || "";
       const dialogues = s.对白 || [];
-      const action = s.动作列表 || s.动作描述 || "";
+      // 渲染动作列表：支持对象数组 [{内容:"..."}]、字符串数组、纯字符串、以及旧格式 ""动作描述"" 字符串
+      const actionList = s.动作列表 || s.动作描述 || "";
+      let actionHtml = "";
+      if (Array.isArray(actionList)) {
+        const parts = actionList.map(a => {
+          if (typeof a === "object" && a !== null) return a.内容 || a.content || "";
+          return String(a);
+        }).filter(Boolean);
+        if (parts.length) actionHtml = `<div class="scene-action">${esc(parts.join("\n"))}</div>`;
+      } else if (typeof actionList === "string" && actionList) {
+        actionHtml = `<div class="scene-action">${esc(actionList.slice(0, 200))}</div>`;
+      }
 
       html += `
         <div class="scene-card">
@@ -653,7 +664,7 @@ function renderResultTabs(characters, scenes, yaml) {
             ${timeOfDay ? `<span class="scene-time">${esc(timeOfDay)}</span>` : ""}
             ${mood ? `<span class="scene-mood">${esc(mood)}</span>` : ""}
           </div>
-          ${action ? `<div class="scene-action">${esc(typeof action === "string" ? action.slice(0, 200) : JSON.stringify(action).slice(0, 200))}</div>` : ""}
+          ${actionHtml}
           ${dialogues.length ? `<div class="scene-dialogues">${dialogues.slice(0, 6).map(d => {
             const speaker = d.角色名称 || d.角色编号 || d.character || d.speaker || "?";
             const line = (d.台词 || d.台词内容 || d.line || d.text || "").slice(0, 100);
