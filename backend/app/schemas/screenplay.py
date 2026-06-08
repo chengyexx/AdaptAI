@@ -1,4 +1,4 @@
-"""剧本 YAML Schema — Pydantic 数据模型（对应 docs/superpowers/specs/...screenplay-yaml-schema.md）"""
+"""剧本 YAML Schema — Pydantic 数据模型（全中文字段名）"""
 
 from pydantic import BaseModel, Field
 from typing import Literal
@@ -105,40 +105,40 @@ class Character(BaseModel):
 # ═══════════════════════════════════════════════════════════════
 
 class SceneHeading(BaseModel):
-    location: str                              # "内景 咖啡店" 或 "外景 公园"
-    time_of_day: TimeOfDay
-    setting_detail: str = ""
+    地点: str                                   # "内景 咖啡店" 或 "外景 公园"
+    时段: TimeOfDay
+    场景细节: str = ""
 
 
 class ActionBlock(BaseModel):
-    type: Literal["动作", "行为提示"] = "动作"
-    text: str
+    类型: Literal["动作", "行为提示"] = "动作"
+    内容: str
 
 
 class DialogueBlock(BaseModel):
-    character_id: str                          # 说话角色 ID
-    emotion: str = ""                          # 情绪状态
-    delivery: str = ""                         # 表演提示（whispering, shouting...）
-    text: str                                  # 对白原文
-    parenthetical: str = ""                    # 行为提示 "(to himself)"
+    角色编号: str                               # 说话角色 ID
+    情绪: str = ""                             # 情绪状态
+    表演提示: str = ""                          # 表演提示
+    台词内容: str                              # 对白原文
+    行为提示: str = ""                          # 行为提示
 
 
 class ShotSuggestion(BaseModel):
-    type: ShotType
-    description: str
-    optional: bool = True                      # 始终 true——AI建议非强制
+    镜头类型: ShotType
+    镜头描述: str
+    可选: bool = True                           # 始终 true——AI建议非强制
 
 
 class Scene(BaseModel):
-    scene_id: str                              # s1, s2, ...
-    chapter: int                               # 来源章节编号
-    heading: SceneHeading
-    characters_present: list[str] = Field(default_factory=list)
-    mood: str = ""
-    action: list[ActionBlock]                  # 至少一个
-    dialogue: list[DialogueBlock] = Field(default_factory=list)
-    shots: list[ShotSuggestion] = Field(default_factory=list)
-    transition: TransitionType | None = None   # None = 默认硬切
+    场景编号: str                               # s1, s2, ...
+    来源章节: int                              # 来源章节编号
+    场景标题: SceneHeading
+    出场角色: list[str] = Field(default_factory=list)
+    情绪基调: str = ""
+    动作列表: list[ActionBlock]                 # 至少一个
+    对白: list[DialogueBlock] = Field(default_factory=list)
+    镜头建议: list[ShotSuggestion] = Field(default_factory=list)
+    转场方式: TransitionType | None = None      # None = 默认硬切
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -146,18 +146,18 @@ class Scene(BaseModel):
 # ═══════════════════════════════════════════════════════════════
 
 class AdaptationNote(BaseModel):
-    scene_id: str | None = None                # 作用于特定场景
-    chapter: int | None = None                 # 作用于特定章节
-    category: NoteCategory
-    severity: NoteSeverity
-    content: str
+    场景编号: str | None = None                 # 作用于特定场景
+    来源章节: int | None = None                # 作用于特定章节
+    分类: NoteCategory
+    严重程度: NoteSeverity
+    内容: str
 
 
 class Stats(BaseModel):
-    scene_count: int = 0
-    character_count: int = 0
-    total_dialogue_blocks: int = 0
-    estimated_runtime_minutes: float = 0.0
+    场景数量: int = 0
+    角色数量: int = 0
+    对白总数: int = 0
+    预估时长分钟: float = 0.0
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -165,22 +165,22 @@ class Stats(BaseModel):
 # ═══════════════════════════════════════════════════════════════
 
 class Metadata(BaseModel):
-    title: str
-    original_author: str = ""
-    converted_by: str = "AI"
-    model: str = ""
-    conversion_date: str = ""
-    source_chapters: int = 0
+    剧本标题: str
+    原著作者: str = ""
+    转换工具: str = "AI"
+    使用模型: str = ""
+    转换日期: str = ""
+    来源章节数: int = 0
 
 
 class Screenplay(BaseModel):
     """剧本根模型 — 对应完整的 YAML 输出"""
-    schema_version: str = "1.0.0"
-    metadata: Metadata
-    dramatis_personae: list[Character]
-    scenes: list[Scene]
-    adaptation_notes: list[AdaptationNote] = Field(default_factory=list)
-    stats: Stats = Field(default_factory=Stats)
+    格式版本: str = "1.0.0"
+    元数据: Metadata
+    角色表: list[Character]
+    场景列表: list[Scene]
+    改编说明: list[AdaptationNote] = Field(default_factory=list)
+    统计信息: Stats = Field(default_factory=Stats)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -189,43 +189,43 @@ class Screenplay(BaseModel):
 
 class ChunkDialogueLine(BaseModel):
     """单条对白 — 匹配 LLM 输出"""
-    character_id: str = ""               # c1, c2（优先用 ID）
-    character: str = ""                  # 回退用角色名
-    emotion_or_action: str | None = None
-    line: str
-    type: Literal["普通", "画外音", "画外"] = "普通"
+    角色编号: str = ""                          # c1, c2（优先用 ID）
+    角色名称: str = ""                          # 回退用角色名
+    情绪动作: str | None = None
+    台词: str
+    对白类型: Literal["普通", "画外音", "画外"] = "普通"
 
 
 class ChunkShotSuggestion(BaseModel):
     """镜头建议 — 匹配 LLM 输出"""
-    type: str = "全景"                   # 全景, 特写, 中景, 跟拍, 横摇, 主观视角...
-    description: str = ""
-    optional: bool = True
+    镜头类型: str = "全景"                      # 全景, 特写, 中景, 跟拍, 横摇, 主观视角...
+    镜头描述: str = ""
+    可选: bool = True
 
 
 class ChunkSceneHeading(BaseModel):
     """场景标题"""
-    location: str
-    time_of_day: Literal["白天", "夜晚", "黎明", "黄昏"] = "白天"
-    setting_detail: str = ""
+    地点: str
+    时段: Literal["白天", "夜晚", "黎明", "黄昏"] = "白天"
+    场景细节: str = ""
 
 
 class ChunkScene(BaseModel):
     """单块输出的场景 — 升级版，匹配完整 Screenplay 字段"""
-    scene_id: str
-    chapter: int | str
-    heading: ChunkSceneHeading
-    characters_present: list[str] = Field(default_factory=list)
-    mood: str = ""                                         # 情绪基调
-    plot_actions: list[str] = Field(description="纯动作与视觉描写", default_factory=list)
-    dialogues: list[ChunkDialogueLine] = Field(default_factory=list)
-    shots: list[ChunkShotSuggestion] = Field(default_factory=list)  # 镜头建议
-    transition: str | None = None                          # CUT TO / FADE IN / ...
+    场景编号: str
+    来源章节: int | str
+    场景标题: ChunkSceneHeading
+    出场角色: list[str] = Field(default_factory=list)
+    情绪基调: str = ""                                         # 情绪基调
+    动作描述: list[str] = Field(description="纯动作与视觉描写", default_factory=list)
+    对白: list[ChunkDialogueLine] = Field(default_factory=list)
+    镜头建议: list[ChunkShotSuggestion] = Field(default_factory=list)  # 镜头建议
+    转场方式: str | None = None                          # 切至 / 淡入 / ...
 
 
 class ScriptDocument(BaseModel):
     """LLM 输出的完整文档模型 — 用于 Pydantic 校验"""
-    scenes: list[ChunkScene]
+    场景列表: list[ChunkScene]
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -234,19 +234,19 @@ class ScriptDocument(BaseModel):
 
 class FinalStats(BaseModel):
     """剧本统计"""
-    scene_count: int = 0
-    character_count: int = 0
-    total_dialogue_blocks: int = 0
-    estimated_runtime_minutes: float = 0.0
+    场景数量: int = 0
+    角色数量: int = 0
+    对白总数: int = 0
+    预估时长分钟: float = 0.0
 
 
 class FinalScreenplay(BaseModel):
     """最终交付的完整剧本"""
-    schema_version: str = "1.0.0"
-    title: str = ""
-    original_author: str = ""
-    conversion_date: str = ""
-    dramatis_personae: list = Field(default_factory=list)
-    scenes: list[ChunkScene] = Field(default_factory=list)
-    adaptation_notes: list[str] = Field(default_factory=list)
-    stats: FinalStats = Field(default_factory=FinalStats)
+    格式版本: str = "1.0.0"
+    剧本标题: str = ""
+    原著作者: str = ""
+    转换日期: str = ""
+    角色表: list = Field(default_factory=list)
+    场景列表: list[ChunkScene] = Field(default_factory=list)
+    改编说明: list[str] = Field(default_factory=list)
+    统计信息: FinalStats = Field(default_factory=FinalStats)

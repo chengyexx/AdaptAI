@@ -45,19 +45,19 @@ class SceneAgent(BaseAgent):
                 response = await llm_adapter.complete(user_prompt, system_prompt)
                 output = self._extract_json(response.text)
 
-                # 自动补全缺失的 scene_id
-                for i, s in enumerate(output.get("scenes", [])):
-                    if "scene_id" not in s:
-                        s["scene_id"] = f"s{i + 1}"
+                # 自动补全缺失的 场景编号
+                for i, s in enumerate(output.get("场景列表", [])):
+                    if "场景编号" not in s:
+                        s["场景编号"] = f"s{i + 1}"
 
-                schema_score = self._check_schema(output, ["scenes", "self_assessment"])
+                schema_score = self._check_schema(output, ["场景列表", "自评"])
                 cross_score = self._cross_validate(output, state)
-                sa = output.get("self_assessment", {})
+                sa = output.get("自评", {})
                 sa_score = (
-                    sa.get("segmentation_accuracy", 5)
-                    + sa.get("location_identification", 5)
-                    + sa.get("character_attendance", 5)
-                    + sa.get("format_compliance", 5)
+                    sa.get("切分准确性", 5)
+                    + sa.get("地点识别", 5)
+                    + sa.get("角色出场", 5)
+                    + sa.get("格式合规", 5)
                 ) / 40.0
                 confidence = self.compute_confidence(
                     output, state, schema_score, sa_score, cross_score
@@ -89,7 +89,7 @@ class SceneAgent(BaseAgent):
 
     def _cross_validate(self, output: dict, state: dict) -> float:
         """交叉验证：场景引用角色的 ID 是否都存在于角色表中"""
-        scenes = output.get("scenes", [])
+        scenes = output.get("场景列表", [])
         if not scenes:
             return 0.5
 
@@ -102,7 +102,7 @@ class SceneAgent(BaseAgent):
 
         errors = 0
         for s in scenes:
-            for cid in s.get("characters_present", []):
+            for cid in s.get("出场角色", []):
                 if cid not in char_ids:
                     errors += 1
 

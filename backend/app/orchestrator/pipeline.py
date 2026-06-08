@@ -129,7 +129,7 @@ class HappyPathPipeline(BasePipeline):
             await self._push_progress(tid, "validator", 0.9)
             await self._log(tid, "info", "校验剧本完整性...")
 
-            screenplay = {"scenes": state.artifacts.scenes, "dramatis_personae": state.artifacts.characters}
+            screenplay = {"场景列表": state.artifacts.scenes, "角色表": state.artifacts.characters}
             validation = self.rule_validator.validate(screenplay)
             if validation["passed"]:
                 state.status = PipelineStatus.COMPLETED
@@ -196,7 +196,7 @@ class HappyPathPipeline(BasePipeline):
         if agent_name == "character_agent":
             state.artifacts.characters = output.get("characters", [])
         elif agent_name == "scene_agent":
-            state.artifacts.scenes = output.get("scenes", [])
+            state.artifacts.scenes = output.get("场景列表", [])
         elif agent_name == "script_agent":
             import yaml
             state.artifacts.script_yaml = yaml.dump(output, allow_unicode=True, default_flow_style=False, sort_keys=False)

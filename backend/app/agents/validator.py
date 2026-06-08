@@ -16,48 +16,45 @@ class Validator:
         errors: list[str] = []
         warnings: list[str] = []
 
-        scenes = screenplay.get("scenes", [])
-        characters = screenplay.get("dramatis_personae", [])
+        scenes = screenplay.get("场景列表", [])
+        characters = screenplay.get("角色表", [])
         char_ids = {c["id"] for c in characters}
 
         # 1. Schema 结构校验
         if not scenes:
-            errors.append("scenes 数组不能为空")
+            errors.append("场景列表 数组不能为空")
 
         for scene in scenes:
-            sid = scene.get("scene_id", "?")
+            sid = scene.get("场景编号", "?")
 
-            if "scene_id" not in scene:
-                errors.append("场景缺少 scene_id 字段")
-            if "heading" not in scene:
-                errors.append(f"场景 {sid}: 缺少 heading")
+            if "场景编号" not in scene:
+                errors.append("场景缺少 场景编号 字段")
+            if "场景标题" not in scene:
+                errors.append(f"场景 {sid}: 缺少 场景标题")
             else:
-                heading = scene["heading"]
-                if "location" not in heading:
-                    errors.append(f"场景 {sid}: heading 缺少 location")
-                if "time_of_day" not in heading:
-                    errors.append(f"场景 {sid}: heading 缺少 time_of_day")
-            # 兼容 HappyPath ("action") 和 SMR ("plot_actions") 两种输出
-            # 注意：不能用 `or`，因为空列表是 falsy 但含义不同
-            action_field = scene.get("action")
+                heading = scene["场景标题"]
+                if "地点" not in heading:
+                    errors.append(f"场景 {sid}: 场景标题 缺少 地点")
+                if "时段" not in heading:
+                    errors.append(f"场景 {sid}: 场景标题 缺少 时段")
+            # 兼容 HappyPath ("动作列表") 和 SMR ("动作描述") 两种输出
+            action_field = scene.get("动作列表")
             if action_field is None:
-                action_field = scene.get("plot_actions", [])
+                action_field = scene.get("动作描述", [])
             if not action_field:
                 errors.append(f"场景 {sid}: 缺少动作块")
 
             # 2. 交叉引用校验
-            for cid in scene.get("characters_present", []):
+            for cid in scene.get("出场角色", []):
                 if char_ids and cid not in char_ids:
                     errors.append(
-                        f"场景 {sid}: 角色 '{cid}' 不在 dramatis_personae 中"
+                        f"场景 {sid}: 角色 '{cid}' 不在 角色表 中"
                     )
 
-            # 4. 对白归属校验（兼容 "dialogue" 和 "dialogues"）
-            dialogues = scene.get("dialogue")
-            if dialogues is None:
-                dialogues = scene.get("dialogues", [])
+            # 4. 对白归属校验（兼容单复数两种写法）
+            dialogues = scene.get("对白", [])
             for d in dialogues:
-                speaker = d.get("character_id", "")
+                speaker = d.get("角色编号", "")
                 if char_ids and speaker not in char_ids:
                     errors.append(
                         f"场景 {sid}: 对白引用未知角色 '{speaker}'"
@@ -66,7 +63,7 @@ class Validator:
         # 3. 场景编号连续性校验
         scene_numbers = []
         for scene in scenes:
-            sid = scene.get("scene_id", "")
+            sid = scene.get("场景编号", "")
             if sid.startswith("s") and sid[1:].isdigit():
                 scene_numbers.append(int(sid[1:]))
         if scene_numbers:
@@ -78,7 +75,7 @@ class Validator:
 
         # 对白覆盖率检查
         scenes_with_dialogue = sum(
-            1 for s in scenes if s.get("dialogue") or s.get("dialogues")
+            1 for s in scenes if s.get("对白")
         )
         if len(scenes) > 3 and scenes_with_dialogue < len(scenes) * 0.3:
             warnings.append(

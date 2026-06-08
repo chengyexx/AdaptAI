@@ -3,40 +3,40 @@
 请将以下章节文本切分为场景单元。每个场景是一个独立的时间和空间片段——当时间或地点发生显著变化时，即应划分新场景。
 
 对每个场景，提取以下信息：
-1. scene_id：场景编号（s1, s2, s3...）
-2. chapter：来源章节编号
-3. heading.location：场景地点（如"INT. 林墨的客厅"、"EXT. 花园 - 后院"）
-4. heading.time_of_day：时段（DAWN/MORNING/AFTERNOON/EVENING/NIGHT/LATER/CONTINUOUS）
-5. heading.setting_detail：环境细节描述（如有）
-6. characters_present：出场的角色 ID 列表
-7. mood：情绪基调/氛围
-8. summary：事件摘要（1-2句话）
-9. action：动作描写文本（从原文提取关键动作）
+1. 场景编号：场景编号（s1, s2, s3...）
+2. 来源章节：来源章节编号
+3. 场景标题.地点：场景地点（如"INT. 林墨的客厅"、"EXT. 花园 - 后院"）
+4. 场景标题.时段：时段（黎明/早晨/下午/傍晚/夜晚/稍后/连续）
+5. 场景标题.场景细节：环境细节描述（如有）
+6. 出场角色：出场的角色 ID 列表
+7. 情绪基调：情绪基调/氛围
+8. 摘要：事件摘要（1-2句话）
+9. 动作描述：动作描写文本（从原文提取关键动作）
 
 时段枚举值说明：
-DAWN=黎明, MORNING=早晨, AFTERNOON=下午, EVENING=傍晚, NIGHT=夜晚, LATER=稍后, CONTINUOUS=连续
+黎明, 早晨, 下午, 傍晚, 夜晚, 稍后, 连续
 
 输出必须是严格合法的 JSON，格式如下：
 {
-  "scenes": [
+  "场景列表": [
     {
-      "scene_id": "s1",
-      "chapter": 1,
-      "heading": {
-        "location": "EXT. 花园 - 后院",
-        "time_of_day": "MORNING",
-        "setting_detail": "晨雾未散"
+      "场景编号": "s1",
+      "来源章节": 1,
+      "场景标题": {
+        "地点": "EXT. 花园 - 后院",
+        "时段": "早晨",
+        "场景细节": "晨雾未散"
       },
-      "characters_present": ["c1"],
-      "mood": "宁静",
-      "summary": "林墨在花园里照料玫瑰。"
+      "出场角色": ["c1"],
+      "情绪基调": "宁静",
+      "摘要": "林墨在花园里照料玫瑰。"
     }
   ],
-  "self_assessment": {
-    "segmentation_accuracy": 8,
-    "location_identification": 8,
-    "character_attendance": 9,
-    "format_compliance": 10
+  "自评": {
+    "切分准确性": 8,
+    "地点识别": 8,
+    "角色出场": 9,
+    "格式合规": 10
   }
 }
 

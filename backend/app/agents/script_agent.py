@@ -41,12 +41,12 @@ class ScriptAgent(BaseAgent):
         scene_list = json.dumps(
             [
                 {
-                    "scene_id": s.get("scene_id"),
-                    "chapter": s.get("chapter"),
-                    "heading": s.get("heading"),
-                    "characters_present": s.get("characters_present", []),
-                    "mood": s.get("mood", ""),
-                    "summary": s.get("summary", ""),
+                    "场景编号": s.get("场景编号"),
+                    "来源章节": s.get("来源章节"),
+                    "场景标题": s.get("场景标题"),
+                    "出场角色": s.get("出场角色", []),
+                    "情绪基调": s.get("情绪基调", ""),
+                    "摘要": s.get("摘要", ""),
                 }
                 for s in scenes
             ],
@@ -67,13 +67,13 @@ class ScriptAgent(BaseAgent):
                 output = self._extract_json(response.text)
 
                 schema_score = self._check_schema(
-                    output, ["scenes"]
+                    output, ["场景列表"]
                 )
-                sa = output.get("self_assessment", {})
+                sa = output.get("自评", {})
                 sa_score = (
-                    sa.get("completeness", 5)
-                    + sa.get("dialogue_quality", 5)
-                    + sa.get("format_compliance", 5)
+                    sa.get("完整性", 5)
+                    + sa.get("对白质量", 5)
+                    + sa.get("格式合规", 5)
                 ) / 30.0
                 confidence = self.compute_confidence(
                     output, state, schema_score, sa_score, 0.8

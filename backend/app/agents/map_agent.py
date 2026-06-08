@@ -116,7 +116,7 @@ class MapAgent(BaseAgent):
         """解析 YAML 并用 Pydantic 校验，返回 scene dict 列表"""
         try:
             raw = yaml.safe_load(yaml_text)
-            if not raw or "scenes" not in raw:
+            if not raw or "场景列表" not in raw:
                 return []
 
             # Pydantic 校验

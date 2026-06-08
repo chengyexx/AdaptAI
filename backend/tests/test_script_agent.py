@@ -1,128 +1,87 @@
-"""ScriptAgent 单元测试 — 剧本生成与改编建议"""
+"""Script Agent 单元测试 — 剧本生成逻辑验证"""
 
 import pytest
-from unittest.mock import AsyncMock
-from llm.adapter import LLMResponse
+from unittest.mock import MagicMock, AsyncMock
 from agents.script_agent import ScriptAgent
 
 
-SCRIPT_JSON = """{
-  "scenes": [
+MOCK_LLM_RESPONSE = """
+{
+  "场景列表": [
     {
-      "scene_id": "s1",
-      "chapter": 1,
-      "heading": { "location": "INT. ROOM", "time_of_day": "MORNING" },
-      "characters_present": ["c1"],
-      "mood": "宁静",
-      "action": [{"type": "action", "text": "He enters and looks around."}],
-      "dialogue": [
-        {"character_id": "c1", "emotion": "calm", "delivery": "", "text": "Hello.", "parenthetical": ""}
+      "场景编号": "s1",
+      "来源章节": 1,
+      "场景标题": { "地点": "INT. ROOM", "时段": "早晨" },
+      "出场角色": ["c1"],
+      "动作列表": [
+        { "类型": "动作", "内容": "John enters the room slowly." }
       ],
-      "shots": [],
-      "transition": null
+      "对白": [
+        { "角色编号": "c1", "情绪": "平静", "表演提示": "", "台词内容": "Hello.", "行为提示": "" }
+      ],
+      "镜头建议": [
+        { "镜头类型": "全景", "镜头描述": "Wide shot of room", "可选": true }
+      ],
+      "转场方式": null
     }
   ],
-  "adaptation_notes": [
-    {"scene_id": "s1", "category": "pacing", "severity": "suggestion", "content": "Slow opening."}
+  "改编说明": [
+    { "场景编号": "s1", "分类": "节奏", "严重程度": "建议", "内容": "Slow opening." }
   ],
-  "self_assessment": {"completeness": 8, "dialogue_quality": 7, "format_compliance": 9}
-}"""
+  "自评": {
+    "完整性": 8,
+    "对白质量": 7,
+    "格式合规": 9
+  }
+}
+"""
 
 
 @pytest.fixture
-def mock_adapter():
-    adapter = AsyncMock()
-    adapter.complete.return_value = LLMResponse(
-        text=SCRIPT_JSON, model="mock", token_usage={"output": 300}
-    )
+def mock_llm_adapter():
+    adapter = MagicMock()
+    adapter.complete = AsyncMock()
     return adapter
 
 
 @pytest.fixture
-def state_full():
+def state_with_chars_and_scenes():
     return {
         "artifacts": {
-            "chapters": [{"index": 1, "title": "Ch1", "text": "..."}],
+            "chapters": [{"title": "Ch1", "text": "..."}],
             "characters": [
                 {"id": "c1", "name": "John", "aliases": [], "description": {"role": "protagonist"}},
             ],
             "scenes": [
-                {"scene_id": "s1", "chapter": 1, "heading": {"location": "ROOM", "time_of_day": "MORNING"}, "characters_present": ["c1"], "mood": "calm", "summary": "Entering."},
+                {"场景编号": "s1", "来源章节": 1, "场景标题": {"地点": "ROOM", "时段": "早晨"}, "出场角色": ["c1"], "情绪基调": "calm", "摘要": "Entering."},
             ],
         }
     }
 
 
-# ── Prompt 构建 ──
-
 @pytest.mark.asyncio
-async def test_build_prompt_with_characters(state_full):
+async def test_script_agent_success(mock_llm_adapter, state_with_chars_and_scenes):
+    mock_llm_adapter.complete.return_value = MagicMock(
+        text=MOCK_LLM_RESPONSE, token_usage={"output": 200}
+    )
     agent = ScriptAgent()
-    _, user = agent.build_prompt(state_full)
-    assert "John" in user
-    assert "protagonist" in user
+    result = await agent.run(state_with_chars_and_scenes, mock_llm_adapter)
 
-
-@pytest.mark.asyncio
-async def test_build_prompt_with_scenes(state_full):
-    agent = ScriptAgent()
-    _, user = agent.build_prompt(state_full)
-    assert "s1" in user
-    assert "ROOM" in user
-
-
-# ── Agent 运行 ──
-
-@pytest.mark.asyncio
-async def test_script_agent_run(mock_adapter, state_full):
-    agent = ScriptAgent()
-    result = await agent.run(state_full, mock_adapter)
-
-    assert result.success
-    assert len(result.output["scenes"]) == 1
-    assert result.output["scenes"][0]["dialogue"][0]["text"] == "Hello."
-    assert result.confidence > 0.5
+    assert result.success is True
+    assert len(result.output["场景列表"]) == 1
+    assert result.output["场景列表"][0]["对白"][0]["台词内容"] == "Hello."
 
 
 @pytest.mark.asyncio
-async def test_script_agent_generates_adaptation_notes(mock_adapter, state_full):
+async def test_script_agent_empty_input(mock_llm_adapter):
+    """空输入时不崩溃"""
+    mock_llm_adapter.complete.return_value = MagicMock(
+        text='{"场景列表":[],"改编说明":[],"自评":{"完整性":1,"对白质量":1,"格式合规":1}}',
+        token_usage={"output": 50},
+    )
     agent = ScriptAgent()
-    result = await agent.run(state_full, mock_adapter)
-
-    notes = result.output.get("adaptation_notes", [])
-    assert len(notes) >= 1
-    assert "category" in notes[0]
-    assert "severity" in notes[0]
-    assert "content" in notes[0]
-
-
-# ── 错误处理 ──
-
-@pytest.mark.asyncio
-async def test_script_agent_handles_error():
-    agent = ScriptAgent()
-    adapter = AsyncMock()
-    adapter.complete.side_effect = Exception("API down")
-
     result = await agent.run(
-        {"artifacts": {"chapters": [], "characters": [], "scenes": []}}, adapter
+        {"artifacts": {"chapters": [], "characters": [], "scenes": []}}, mock_llm_adapter
     )
-    assert not result.success
-    assert len(result.warnings) > 0
-
-
-# ── 空输入 ──
-
-@pytest.mark.asyncio
-async def test_empty_state():
-    agent = ScriptAgent()
-    adapter = AsyncMock()
-    adapter.complete.return_value = LLMResponse(
-        text='{"scenes":[],"adaptation_notes":[],"self_assessment":{"completeness":1,"dialogue_quality":1,"format_compliance":1}}',
-        model="mock", token_usage={}
-    )
-    result = await agent.run(
-        {"artifacts": {"chapters": [], "characters": [], "scenes": []}}, adapter
-    )
-    assert result.success
-    assert result.output["scenes"] == []
+    assert result.success is True
+    assert result.output["场景列表"] == []

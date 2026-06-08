@@ -262,23 +262,23 @@ class ScoutMapReducePipeline(BasePipeline):
         from datetime import datetime, UTC
         import yaml
 
-        total_dialogues = sum(len(s.get("dialogues", [])) for s in all_scenes)
+        total_dialogues = sum(len(s.get("对白", [])) for s in all_scenes)
         char_count = len(state.artifacts.characters)
         scene_count = len(all_scenes)
 
         final_output = {
-            "schema_version": "1.0.0",
-            "title": state.artifacts.chapters[0].get("title", "未命名") if state.artifacts.chapters else "未命名",
-            "original_author": "",
-            "conversion_date": datetime.now(UTC).strftime("%Y-%m-%d"),
-            "dramatis_personae": state.artifacts.characters,
-            "scenes": all_scenes,
-            "adaptation_notes": state.artifacts.adaptation_notes,
-            "stats": {
-                "scene_count": scene_count,
-                "character_count": char_count,
-                "total_dialogue_blocks": total_dialogues,
-                "estimated_runtime_minutes": round(scene_count * 2.0, 1),
+            "格式版本": "1.0.0",
+            "剧本标题": state.artifacts.chapters[0].get("title", "未命名") if state.artifacts.chapters else "未命名",
+            "原著作者": "",
+            "转换日期": datetime.now(UTC).strftime("%Y-%m-%d"),
+            "角色表": state.artifacts.characters,
+            "场景列表": all_scenes,
+            "改编说明": state.artifacts.adaptation_notes,
+            "统计信息": {
+                "场景数量": scene_count,
+                "角色数量": char_count,
+                "对白总数": total_dialogues,
+                "预估时长分钟": round(scene_count * 2.0, 1),
             },
         }
         state.artifacts.script_yaml = yaml.dump(
@@ -294,12 +294,12 @@ class ScoutMapReducePipeline(BasePipeline):
             for c in state.artifacts.characters[:15]
         )
         scenes_info = "\n".join(
-            f"- {s.get('scene_id','?')}: {s.get('heading',{}).get('location','?')}"
+            f"- {s.get('场景编号','?')}: {s.get('场景标题',{}).get('地点','?')}"
             for s in all_scenes[:15]
         )
 
         ai_validator = AIValidator()
-        screenplay = {"scenes": all_scenes, "dramatis_personae": state.artifacts.characters}
+        screenplay = {"场景列表": all_scenes, "角色表": state.artifacts.characters}
         validation = await ai_validator.validate(
             screenplay=screenplay,
             characters_info=characters_info,

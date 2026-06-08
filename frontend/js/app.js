@@ -633,33 +633,33 @@ function renderResultTabs(characters, scenes, yaml) {
   if (scenes.length > 0) {
     let html = `<div class="scene-list">`;
     scenes.forEach((s, i) => {
-      const h = s.heading || {};
-      const location = h.location || "未知地点";
-      const timeOfDay = h.time_of_day || h.timeOfDay || "";
+      const h = s.场景标题 || {};
+      const location = h.地点 || "未知地点";
+      const timeOfDay = h.时段 || "";
       // 兼容中英文格式："内景 电影院"/"外景 公园"/"INT. CINEMA"/"EXT. PARK"
       let type, locOnly;
       if (location.startsWith("内景")) { type = "内景"; locOnly = location.slice(2).trim(); }
       else if (location.startsWith("外景")) { type = "外景"; locOnly = location.slice(2).trim(); }
       else { type = h.type || (location.startsWith("INT") ? "INT." : "EXT."); locOnly = location; }
-      const mood = s.mood || "";
-      const dialogues = s.dialogue || s.dialogues || [];
-      const action = s.action || s.plot_actions || s.actions || "";
+      const mood = s.情绪基调 || "";
+      const dialogues = s.对白 || [];
+      const action = s.动作列表 || s.动作描述 || "";
 
       html += `
         <div class="scene-card">
           <div class="scene-heading">
-            <span class="scene-id">${esc(s.scene_id || `s${i + 1}`)}</span>
+            <span class="scene-id">${esc(s.场景编号 || `s${i + 1}`)}</span>
             <span class="scene-loc">${esc(type)} ${esc(locOnly)}</span>
             ${timeOfDay ? `<span class="scene-time">${esc(timeOfDay)}</span>` : ""}
             ${mood ? `<span class="scene-mood">${esc(mood)}</span>` : ""}
           </div>
           ${action ? `<div class="scene-action">${esc(typeof action === "string" ? action.slice(0, 200) : JSON.stringify(action).slice(0, 200))}</div>` : ""}
           ${dialogues.length ? `<div class="scene-dialogues">${dialogues.slice(0, 6).map(d => {
-            const speaker = d.character || d.speaker || "?";
-            const line = (d.line || d.text || "").slice(0, 100);
+            const speaker = d.角色名称 || d.角色编号 || d.character || d.speaker || "?";
+            const line = (d.台词 || d.台词内容 || d.line || d.text || "").slice(0, 100);
             return `<div class="dl-line"><span class="dl-speaker">${esc(speaker)}</span><span class="dl-text">${esc(line)}</span></div>`;
           }).join("")}</div>` : ""}
-          ${s.shots && s.shots.length ? `<div class="scene-shots">${s.shots.slice(0, 3).map(sh => `<span class="shot-tag">${esc(sh.type || sh)}</span>`).join("")}</div>` : ""}
+          ${s.镜头建议 && s.镜头建议.length ? `<div class="scene-shots">${s.镜头建议.slice(0, 3).map(sh => `<span class="shot-tag">${esc(sh.镜头类型 || sh.type || sh)}</span>`).join("")}</div>` : ""}
         </div>`;
     });
     html += `</div>`;
@@ -818,9 +818,9 @@ function renderHITL(hitlMsg, artifacts) {
     data.scenes.forEach((s, i) => {
       html += `
         <div class="edit-card">
-          <label>地点 <input value="${esc((s.heading || {}).location || "")}" data-scene="${i}" data-field="location"></label>
-          <label>时段 <input value="${esc((s.heading || {}).time_of_day || "")}" data-scene="${i}" data-field="time"></label>
-          <label>氛围 <input value="${esc(s.mood || "")}" data-scene="${i}" data-field="mood"></label>
+          <label>地点 <input value="${esc((s.场景标题 || {}).地点 || "")}" data-scene="${i}" data-field="location"></label>
+          <label>时段 <input value="${esc((s.场景标题 || {}).时段 || "")}" data-scene="${i}" data-field="time"></label>
+          <label>氛围 <input value="${esc(s.情绪基调 || "")}" data-scene="${i}" data-field="mood"></label>
         </div>`;
     });
   }
@@ -942,7 +942,14 @@ async function submitHITL(agent) {
         const i = parseInt(el.dataset.scene);
         if (isNaN(i) || !scenes[i]) return;
         const field = el.dataset.field;
-        if (field) scenes[i][field] = el.value;
+        if (!field) return;
+        if (field === "location" || field === "time") {
+          if (!scenes[i].场景标题) scenes[i].场景标题 = {};
+          if (field === "location") scenes[i].场景标题.地点 = el.value;
+          else scenes[i].场景标题.时段 = el.value;
+        } else if (field === "mood") {
+          scenes[i].情绪基调 = el.value;
+        }
       });
       payload = { scenes };
     }

@@ -105,7 +105,7 @@ async def test_hitl_submit_updates_state(client):
     resp = await client.post("/api/sessions", data={"text": "## 第一章\n林墨。\n## 第二章\n小禾。\n## 第三章\n对话。"})
     tid = resp.json()["thread_id"]
     edits = {"characters": [{"id": "c1", "name": "林墨", "aliases": [], "description": {"role": "protagonist"}, "relationships": []}]}
-    resp = await client.post(f"/api/sessions/{tid}/hitl/submit", json=edits)
+    resp = await client.post(f"/api/sessions/{tid}/hitl/continue", json=edits)
     assert resp.status_code == 200
 
 

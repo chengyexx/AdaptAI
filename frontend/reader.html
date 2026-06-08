@@ -204,17 +204,17 @@ createApp({
       });
       const arr = [];
       scenes.forEach((s, i) => {
-        const h = s.heading || {}; const loc = h.location || ""; const tod = h.time_of_day || h.timeOfDay || "";
-        const sd = h.setting_detail || h.settingDetail || "";
+        const h = s.场景标题 || {}; const loc = h.地点 || ""; const tod = h.时段 || "";
+        const sd = h.场景细节 || "";
         const head = loc ? `${loc.startsWith('INT')||loc.startsWith('EXT')?'':'INT./EXT.'} ${loc}${tod?' — '+tod:''}` : '';
-        let act = ""; if (Array.isArray(s.plot_actions)) act = s.plot_actions.join("\n"); else if (Array.isArray(s.action)) act = s.action.map(a=>typeof a==='string'?a:a.text||'').join("\n"); else if (typeof s.action==='string') act = s.action;
-        const dlg = []; (s.dialogues||s.dialogue||[]).forEach(d => { const cid = d.character_id||d.character||''; dlg.push({ character: charMap[cid]||cid||'?', emotion: d.emotion||d.emotion_or_action||'', text: d.line||d.text||'', type: d.type||'NORMAL' }); });
-        const cp = (s.characters_present||[]).map(id=>charMap[id]||id);
-        const sh = (s.shots||[]).map(sh=>({ type: sh.type||'', description: sh.description||sh.type||'' })).filter(sh=>sh.type);
-        const mood = s.mood||''; const trans = s.transition||'';
-        const sc = s.chapter!=null?parseInt(s.chapter)-1:i;
+        let act = ""; if (Array.isArray(s.动作描述)) act = s.动作描述.join("\n"); else if (Array.isArray(s.动作列表)) act = s.动作列表.map(a=>typeof a==='string'?a:a.内容||'').join("\n"); else if (typeof s.动作描述==='string') act = s.动作描述;
+        const dlg = []; (s.对白||[]).forEach(d => { const cid = d.角色编号||d.角色名称||''; dlg.push({ character: charMap[cid]||cid||'?', emotion: d.情绪||d.情绪动作||'', text: d.台词||d.台词内容||'', type: d.对白类型||'NORMAL' }); });
+        const cp = (s.出场角色||[]).map(id=>charMap[id]||id);
+        const sh = (s.镜头建议||[]).map(sh=>({ type: sh.镜头类型||'', description: sh.镜头描述||sh.镜头类型||'' })).filter(sh=>sh.type);
+        const mood = s.情绪基调||''; const trans = s.转场方式||'';
+        const sc = s.来源章节!=null?parseInt(s.来源章节)-1:i;
         const lids = []; if (paragraphs.length>0) { paragraphs.forEach(p=>{if(p.id.startsWith(`ch${sc}`)) lids.push(p.id);}); if(lids.length===0) { const ri = Math.floor((i/Math.max(scenes.length,1))*paragraphs.length); lids.push(paragraphs[Math.min(ri,paragraphs.length-1)].id); } }
-        arr.push({ id: s.scene_id||`s${i+1}`, sceneTitle: s.scene_id||`第${i+1}场`, chapter: s.chapter||(i+1), heading: head, settingDetail: sd, mood, transition: trans, action: act, shots: sh, shotHint: sh.map(x=>x.type+(x.description!==x.type?': '+x.description:'')).join(' / '), charactersPresent: cp, dialogues: dlg, linkedParagraphs: lids });
+        arr.push({ id: s.场景编号||`s${i+1}`, sceneTitle: s.场景编号||`第${i+1}场`, chapter: s.来源章节||(i+1), heading: head, settingDetail: sd, mood, transition: trans, action: act, shots: sh, shotHint: sh.map(x=>x.type+(x.description!==x.type?': '+x.description:'')).join(' / '), charactersPresent: cp, dialogues: dlg, linkedParagraphs: lids });
       });
       return { title: novelTitle, paragraphs, scenes: arr };
     }
