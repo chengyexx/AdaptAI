@@ -200,6 +200,11 @@ class HappyPathPipeline(BasePipeline):
         elif agent_name == "script_agent":
             import yaml
             state.artifacts.script_yaml = yaml.dump(output, allow_unicode=True, default_flow_style=False, sort_keys=False)
+            # 将 ScriptAgent 的完整场景列表（含 动作列表、对白 等）回写到 artifacts.scenes，
+            # 供后续 Validator 校验（SceneAgent 输出的场景只有结构信息，缺少动作块和对白）
+            script_scenes = output.get("场景列表", [])
+            if script_scenes:
+                state.artifacts.scenes = script_scenes
 
         state.pipeline_state.checkpoint_stack.append(f"{agent_name}_done")
 

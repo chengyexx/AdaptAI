@@ -122,7 +122,7 @@ class MapAgent(BaseAgent):
             # Pydantic 校验
             doc = ScriptDocument(**raw)
             # 转回 dict（已通过校验）
-            return [s.model_dump() for s in doc.scenes]
+            return [s.model_dump() for s in doc.场景列表]
 
         except (yaml.YAMLError, Exception):
             return []
