@@ -251,6 +251,127 @@ body {
   color: var(--ink-faint);
 }
 
+/* ── History Panel ──────────────────────────────────────── */
+.history-area {
+  max-height: 360px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  background: var(--paper-warm);
+}
+
+.history-list {
+  padding: 0;
+}
+
+.history-empty {
+  padding: 3rem 1.5rem;
+  text-align: center;
+  color: var(--ink-faint);
+  font-size: var(--text-sm);
+}
+
+.history-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.history-item:last-child { border-bottom: none; }
+
+.history-item:hover { background: rgba(0,0,0,0.02); }
+
+.history-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.history-title {
+  font-family: var(--font-serif);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 0.25rem;
+}
+
+.history-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: var(--text-2xs);
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+}
+
+.history-chips {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  flex-shrink: 0;
+}
+
+.history-chip {
+  padding: 0.125rem 0.5rem;
+  font-size: var(--text-2xs);
+  font-family: var(--font-mono);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  color: var(--ink-soft);
+  background: var(--paper);
+  white-space: nowrap;
+}
+
+.history-status {
+  padding: 0.2rem 0.6rem;
+  font-size: var(--text-2xs);
+  font-family: var(--font-mono);
+  font-weight: 600;
+  border-radius: 100px;
+  white-space: nowrap;
+}
+
+.history-status.completed { background: #e8f5e9; color: #2e7d32; }
+.history-status.created   { background: #fff3e0; color: #e65100; }
+.history-status.error     { background: #ffebee; color: #c62828; }
+.history-status.default   { background: var(--bg-secondary); color: var(--ink-faint); }
+
+.history-delete {
+  padding: 0.25rem 0.5rem;
+  font-size: var(--text-2xs);
+  color: var(--ink-faint);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+}
+
+.history-delete:hover {
+  color: #c62828;
+  border-color: #ffcdd2;
+  background: #ffebee;
+}
+
+.history-delete.confirming {
+  color: #fff;
+  background: #c62828;
+  border-color: #c62828;
+}
+
+.history-item.deleting {
+  opacity: 0.3;
+  pointer-events: none;
+}
+
 /* Primary button — stark, architectural */
 .btn-primary {
   display: inline-flex;

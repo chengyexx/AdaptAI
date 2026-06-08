@@ -16,6 +16,26 @@ const API_HOST = (() => {
 const API_BASE = API_HOST;
 const WS_BASE = API_HOST.replace(/^http/, "ws");
 
+/* ── API Fetch Wrapper（统一超时保护） ── */
+const FETCH_TIMEOUT = 15_000;
+
+function apiFetch(url, options = {}) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
+  return fetch(url, { ...options, signal: controller.signal })
+    .finally(() => clearTimeout(timeoutId));
+}
+
+/**
+ * 判断异常是否为请求超时，返回友好的错误提示
+ */
+function fetchErrorMessage(err, fallback) {
+  if (err.name === "AbortError") {
+    return `请求超时（${FETCH_TIMEOUT / 1000}s），请确认后端服务已启动：${API_BASE}`;
+  }
+  return fallback || err.message;
+}
+
 /* ── Global State ───────────────────────────────────────── */
 const State = {
   threadId: null,
@@ -41,6 +61,9 @@ document.querySelectorAll(".tab").forEach(tab => {
     const mode = tab.dataset.mode;
     document.getElementById("paste-area").style.display = mode === "paste" ? "block" : "none";
     document.getElementById("upload-area").style.display = mode === "upload" ? "block" : "none";
+    document.getElementById("history-area").style.display = mode === "history" ? "block" : "none";
+    document.getElementById("submit-error").style.display = "none";
+    if (mode === "history") loadHistory();
   });
 });
 
@@ -89,7 +112,7 @@ async function submitNovel() {
       formData.append("file", file);
     }
 
-    const resp = await fetch(`${API_BASE}/api/sessions`, {
+    const resp = await apiFetch(`${API_BASE}/api/sessions`, {
       method: "POST",
       body: formData,
     });
@@ -108,7 +131,7 @@ async function submitNovel() {
     await initWorkspace();
 
   } catch (e) {
-    showError(e.message);
+    showError(fetchErrorMessage(e));
   } finally {
     btn.disabled = false;
     btn.innerHTML = "开始转换 →";
@@ -190,7 +213,7 @@ function resetAllSteps() {
 async function initWorkspace() {
   // Cold start: REST restore
   try {
-    const resp = await fetch(`${API_BASE}/api/sessions/${State.threadId}`);
+    const resp = await apiFetch(`${API_BASE}/api/sessions/${State.threadId}`);
     if (resp.ok) {
       const data = await resp.json();
       State.session = data;
@@ -249,7 +272,7 @@ async function startPipeline() {
   addLog("info", "正在提交 Pipeline 任务...");
 
   try {
-    const resp = await fetch(`${API_BASE}/api/sessions/${State.threadId}/start`, {
+    const resp = await apiFetch(`${API_BASE}/api/sessions/${State.threadId}/start`, {
       method: "POST",
     });
 
@@ -290,7 +313,7 @@ async function startPipeline() {
 
 async function refreshSession() {
   try {
-    const resp = await fetch(`${API_BASE}/api/sessions/${State.threadId}`);
+    const resp = await apiFetch(`${API_BASE}/api/sessions/${State.threadId}`);
     if (resp.ok) {
       State.session = await resp.json();
       State.status = State.session.status;
@@ -613,7 +636,11 @@ function renderResultTabs(characters, scenes, yaml) {
       const h = s.heading || {};
       const location = h.location || "未知地点";
       const timeOfDay = h.time_of_day || h.timeOfDay || "";
-      const type = h.type || (location.startsWith("INT") ? "INT." : "EXT.");
+      // 兼容中英文格式："内景 电影院"/"外景 公园"/"INT. CINEMA"/"EXT. PARK"
+      let type, locOnly;
+      if (location.startsWith("内景")) { type = "内景"; locOnly = location.slice(2).trim(); }
+      else if (location.startsWith("外景")) { type = "外景"; locOnly = location.slice(2).trim(); }
+      else { type = h.type || (location.startsWith("INT") ? "INT." : "EXT."); locOnly = location; }
       const mood = s.mood || "";
       const dialogues = s.dialogue || s.dialogues || [];
       const action = s.action || s.plot_actions || s.actions || "";
@@ -622,7 +649,7 @@ function renderResultTabs(characters, scenes, yaml) {
         <div class="scene-card">
           <div class="scene-heading">
             <span class="scene-id">${esc(s.scene_id || `s${i + 1}`)}</span>
-            <span class="scene-loc">${esc(type)} ${esc(location)}</span>
+            <span class="scene-loc">${esc(type)} ${esc(locOnly)}</span>
             ${timeOfDay ? `<span class="scene-time">${esc(timeOfDay)}</span>` : ""}
             ${mood ? `<span class="scene-mood">${esc(mood)}</span>` : ""}
           </div>
@@ -841,7 +868,7 @@ async function submitScoutHITL() {
       }
     });
 
-    const resp = await fetch(`${API_BASE}/api/sessions/${State.threadId}/hitl/continue`, {
+    const resp = await apiFetch(`${API_BASE}/api/sessions/${State.threadId}/hitl/continue`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ characters }),
@@ -869,7 +896,7 @@ async function submitScoutHITL() {
 async function skipScoutHITL() {
   addLog("warn", "跳过 Scout 审阅，直接继续");
   try {
-    await fetch(`${API_BASE}/api/sessions/${State.threadId}/hitl/skip-continue`, { method: "POST" });
+    await apiFetch(`${API_BASE}/api/sessions/${State.threadId}/hitl/skip-continue`, { method: "POST" });
     document.getElementById("hitl-panel").style.display = "none";
     document.getElementById("btn-start").disabled = true;
     document.getElementById("btn-start").textContent = "运行中...";
@@ -920,7 +947,7 @@ async function submitHITL(agent) {
       payload = { scenes };
     }
 
-    await fetch(`${API_BASE}/api/sessions/${State.threadId}/hitl/continue`, {
+    await apiFetch(`${API_BASE}/api/sessions/${State.threadId}/hitl/continue`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -945,7 +972,7 @@ async function skipHITL() {
   const btn = document.getElementById("btn-start");
   btn.disabled = true;
   btn.textContent = "运行中...";
-  await fetch(`${API_BASE}/api/sessions/${State.threadId}/hitl/skip-continue`, { method: "POST" });
+  await apiFetch(`${API_BASE}/api/sessions/${State.threadId}/hitl/skip-continue`, { method: "POST" });
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -1179,6 +1206,145 @@ function esc(str) {
     .replace(/"/g, "&quot;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
+}
+
+/* ═══════════════════════════════════════════════════════════
+   HISTORY
+   ═══════════════════════════════════════════════════════════ */
+
+const STATUS_LABELS = {
+  "created": "待转换",
+  "completed": "已完成",
+  "error": "错误",
+  "paused": "已暂停",
+};
+
+const STATUS_CLASS = {
+  "completed": "completed",
+  "created": "created",
+  "error": "error",
+};
+
+async function loadHistory() {
+  const list = document.getElementById("history-list");
+  list.innerHTML = '<div class="history-empty">加载中…</div>';
+
+  try {
+    const resp = await apiFetch(`${API_BASE}/api/sessions?limit=50`);
+    if (!resp.ok) throw new Error("加载失败");
+    const sessions = await resp.json();
+
+    if (sessions.length === 0) {
+      list.innerHTML = '<div class="history-empty">暂无历史记录</div>';
+      return;
+    }
+
+    list.innerHTML = sessions.map(s => {
+      const updated = s.updated_at ? new Date(s.updated_at) : null;
+      const timeStr = updated
+        ? updated.toLocaleDateString("zh-CN") + " " + updated.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })
+        : "未知时间";
+      const statusLabel = STATUS_LABELS[s.status] || s.status || "未知";
+      const statusClass = STATUS_CLASS[s.status] || "default";
+      const modeLabel = s.pipeline_mode === "happy-path" ? "快速" : "SMR";
+
+      return `
+      <div class="history-item" data-tid="${esc(s.thread_id)}" onclick="resumeSession('${esc(s.thread_id)}')">
+        <div class="history-info">
+          <div class="history-title">${esc(s.title)}</div>
+          <div class="history-meta">
+            <span>${esc(timeStr)}</span>
+            <span>${s.chapter_count || 0} 章 · ${s.total_chars || 0} 字</span>
+          </div>
+        </div>
+        <div class="history-chips">
+          <span class="history-chip">${esc(modeLabel)}</span>
+          <span class="history-status ${statusClass}">${esc(statusLabel)}</span>
+        </div>
+        <button class="history-delete" onclick="event.stopPropagation(); deleteSession(event, '${esc(s.thread_id)}')">删除</button>
+      </div>`;
+    }).join("");
+  } catch (e) {
+    list.innerHTML = `<div class="history-empty">加载失败: ${esc(e.message)}</div>`;
+  }
+}
+
+async function resumeSession(threadId) {
+  State.threadId = threadId;
+  State.view = "workspace";
+
+  // Quick load to get status
+  try {
+    const resp = await apiFetch(`${API_BASE}/api/sessions/${threadId}`);
+    if (resp.ok) {
+      const data = await resp.json();
+      State.session = data;
+      State.status = data.status;
+      State.yamlContent = data.artifacts?.script_yaml;
+      State.characters = data.artifacts?.characters || [];
+      State.scenes = data.artifacts?.scenes || [];
+    }
+  } catch (e) {
+    console.error("Resume load failed:", e);
+  }
+
+  switchView("workspace");
+  await initWorkspace();
+
+  // Re-trigger completion if already done
+  if (State.status === "completed") {
+    handleComplete(State.session || {
+      artifacts: {
+        script_yaml: State.yamlContent,
+        characters: State.characters,
+        scenes: State.scenes,
+      }
+    });
+  }
+}
+
+async function deleteSession(event, threadId) {
+  const btn = event.target;
+  // 二次确认
+  if (!btn.classList.contains("confirming")) {
+    btn.classList.add("confirming");
+    btn.textContent = "确认删除?";
+    setTimeout(() => {
+      if (btn.classList.contains("confirming")) {
+        btn.classList.remove("confirming");
+        btn.textContent = "删除";
+      }
+    }, 3000);
+    return;
+  }
+
+  try {
+    const resp = await apiFetch(`${API_BASE}/api/sessions/${threadId}`, { method: "DELETE" });
+    if (resp.ok) {
+      // 动画移除
+      const item = document.querySelector(`.history-item[data-tid="${threadId}"]`);
+      if (item) {
+        item.classList.add("deleting");
+        setTimeout(() => item.remove(), 300);
+      }
+      // 检查是否为空
+      setTimeout(() => {
+        const list = document.getElementById("history-list");
+        if (!list.querySelector(".history-item")) {
+          list.innerHTML = '<div class="history-empty">暂无历史记录</div>';
+        }
+      }, 350);
+    } else {
+      const err = await resp.json().catch(() => ({}));
+      alert("删除失败: " + (err.detail || "未知错误"));
+      btn.classList.remove("confirming");
+      btn.textContent = "删除";
+    }
+  } catch (e) {
+    alert("删除失败: " + e.message);
+    btn.classList.remove("confirming");
+    btn.textContent = "删除";
+  }
 }
 
 /* ── Keyboard shortcut ──────────────────────────────────── */

@@ -318,7 +318,30 @@ async def export_yaml(thread_id: str):
 @router.get("/sessions")
 async def list_sessions(limit: int = 20):
     sessions = await _state_store.list_sessions(limit)
-    return [
-        {"thread_id": s.thread_id, "status": s.status.value, "updated_at": s.updated_at}
-        for s in sessions
-    ]
+    result = []
+    for s in sessions:
+        chapters = s.artifacts.chapters
+        first_title = ""
+        if chapters and len(chapters) > 0:
+            first_title = chapters[0].get("title", "") or ""
+            # 去掉 markdown 标记
+            first_title = first_title.lstrip("#").strip()[:50]
+        total_chars = sum(c.get("char_count", len(c.get("text", ""))) for c in chapters)
+        result.append({
+            "thread_id": s.thread_id,
+            "status": s.status.value,
+            "updated_at": s.updated_at,
+            "title": first_title or "(无标题)",
+            "chapter_count": len(chapters),
+            "total_chars": total_chars,
+            "pipeline_mode": "scout-map-reduce" if total_chars >= ROUTING_THRESHOLD else "happy-path",
+        })
+    return result
+
+
+@router.delete("/sessions/{thread_id}")
+async def delete_session(thread_id: str):
+    deleted = await _state_store.delete(thread_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    return {"thread_id": thread_id, "deleted": True}

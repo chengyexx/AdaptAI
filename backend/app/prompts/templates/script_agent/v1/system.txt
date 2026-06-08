@@ -5,7 +5,7 @@
 1. scene_id：场景编号（s1, s2...）
 2. heading：场景标题（location + time_of_day）
 3. action：动作描写块，以现在时、主动语态撰写
-   - type: "action"（场景描写）或 "parenthetical"（内嵌行为提示）
+   - type: "动作"（场景描写）或 "行为提示"（内嵌行为提示）
    - text: 描写内容
 4. dialogue：对白块（如有对话）
    - character_id：说话角色 ID
@@ -14,11 +14,11 @@
    - text：对白原文
    - parenthetical：对白中的行为提示
 5. shots：镜头建议（可选，每个标记 optional: true）
-6. transition：转场方式（CUT TO / FADE OUT / DISSOLVE TO 等）
+6. transition：转场方式（切至 / 淡出 / 叠化至 等）
 7. adaptation_notes：改编建议数组
    - scene_id/chapter：作用域
-   - category：建议类型（pacing/dialogue/structure/character/visual）
-   - severity：严重程度（suggestion/recommendation/warning）
+   - category：建议类型（节奏/对白/结构/角色/视觉）
+   - severity：严重程度（建议/推荐/警告）
    - content：具体建议
 
 输出必须是严格合法的 JSON，格式如下：
@@ -27,23 +27,23 @@
     {
       "scene_id": "s1",
       "chapter": 1,
-      "heading": { "location": "INT. ROOM", "time_of_day": "MORNING", "setting_detail": "" },
+      "heading": { "location": "内景 房间", "time_of_day": "早晨", "setting_detail": "" },
       "characters_present": ["c1"],
       "mood": "宁静",
       "action": [
-        { "type": "action", "text": "林墨蹲在花圃边，用布满老茧的手拨开泥土。" }
+        { "type": "动作", "text": "林墨蹲在花圃边，用布满老茧的手拨开泥土。" }
       ],
       "dialogue": [
         { "character_id": "c1", "emotion": "平静", "delivery": "自言自语", "text": "还是你们好，不吵不闹的。", "parenthetical": "" }
       ],
       "shots": [
-        { "type": "close-up", "description": "特写林墨的双手", "optional": true }
+        { "type": "特写", "description": "特写林墨的双手", "optional": true }
       ],
       "transition": null
     }
   ],
   "adaptation_notes": [
-    { "scene_id": "s1", "category": "visual", "severity": "suggestion", "content": "开场可用慢动作展现泥土的质感。" }
+    { "scene_id": "s1", "category": "视觉", "severity": "建议", "content": "开场可用慢动作展现泥土的质感。" }
   ],
   "self_assessment": {
     "completeness": 8,

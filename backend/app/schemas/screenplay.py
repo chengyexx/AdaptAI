@@ -29,51 +29,51 @@ class RelationType(str, Enum):
 
 
 class TimeOfDay(str, Enum):
-    DAWN = "DAWN"
-    MORNING = "MORNING"
-    AFTERNOON = "AFTERNOON"
-    EVENING = "EVENING"
-    NIGHT = "NIGHT"
-    LATER = "LATER"
-    CONTINUOUS = "CONTINUOUS"
+    DAWN = "黎明"
+    MORNING = "早晨"
+    AFTERNOON = "下午"
+    EVENING = "傍晚"
+    NIGHT = "夜晚"
+    LATER = "稍后"
+    CONTINUOUS = "连续"
 
 
 class ShotType(str, Enum):
-    WIDE = "wide"
-    CLOSE_UP = "close-up"
-    MEDIUM = "medium"
-    TRACKING = "tracking"
-    PAN = "pan"
-    TILT = "tilt"
-    DOLLY = "dolly"
-    AERIAL = "aerial"
-    POV = "pov"
-    OVER_THE_SHOULDER = "over-the-shoulder"
-    INSERT = "insert"
-    CUTAWAY = "cutaway"
+    WIDE = "全景"
+    CLOSE_UP = "特写"
+    MEDIUM = "中景"
+    TRACKING = "跟拍"
+    PAN = "横摇"
+    TILT = "俯仰"
+    DOLLY = "滑轨"
+    AERIAL = "航拍"
+    POV = "主观视角"
+    OVER_THE_SHOULDER = "过肩"
+    INSERT = "插入镜头"
+    CUTAWAY = "切出"
 
 
 class TransitionType(str, Enum):
-    CUT_TO = "CUT TO"
-    FADE_IN = "FADE IN"
-    FADE_OUT = "FADE OUT"
-    DISSOLVE_TO = "DISSOLVE TO"
-    SMASH_CUT_TO = "SMASH CUT TO"
-    MATCH_CUT_TO = "MATCH CUT TO"
+    CUT_TO = "切至"
+    FADE_IN = "淡入"
+    FADE_OUT = "淡出"
+    DISSOLVE_TO = "叠化至"
+    SMASH_CUT_TO = "跳切至"
+    MATCH_CUT_TO = "匹配切至"
 
 
 class NoteCategory(str, Enum):
-    PACING = "pacing"
-    DIALOGUE = "dialogue"
-    STRUCTURE = "structure"
-    CHARACTER = "character"
-    VISUAL = "visual"
+    PACING = "节奏"
+    DIALOGUE = "对白"
+    STRUCTURE = "结构"
+    CHARACTER = "角色"
+    VISUAL = "视觉"
 
 
 class NoteSeverity(str, Enum):
-    SUGGESTION = "suggestion"
-    RECOMMENDATION = "recommendation"
-    WARNING = "warning"
+    SUGGESTION = "建议"
+    RECOMMENDATION = "推荐"
+    WARNING = "警告"
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -105,13 +105,13 @@ class Character(BaseModel):
 # ═══════════════════════════════════════════════════════════════
 
 class SceneHeading(BaseModel):
-    location: str                              # "INT. COFFEE SHOP" 或 "EXT. PARK"
+    location: str                              # "内景 咖啡店" 或 "外景 公园"
     time_of_day: TimeOfDay
     setting_detail: str = ""
 
 
 class ActionBlock(BaseModel):
-    type: Literal["action", "parenthetical"] = "action"
+    type: Literal["动作", "行为提示"] = "动作"
     text: str
 
 
@@ -193,12 +193,12 @@ class ChunkDialogueLine(BaseModel):
     character: str = ""                  # 回退用角色名
     emotion_or_action: str | None = None
     line: str
-    type: Literal["NORMAL", "V.O.", "O.S."] = "NORMAL"
+    type: Literal["普通", "画外音", "画外"] = "普通"
 
 
 class ChunkShotSuggestion(BaseModel):
     """镜头建议 — 匹配 LLM 输出"""
-    type: str = "wide"                   # close-up, wide, medium, tracking, pan, pov...
+    type: str = "全景"                   # 全景, 特写, 中景, 跟拍, 横摇, 主观视角...
     description: str = ""
     optional: bool = True
 
@@ -206,7 +206,7 @@ class ChunkShotSuggestion(BaseModel):
 class ChunkSceneHeading(BaseModel):
     """场景标题"""
     location: str
-    time_of_day: Literal["DAY", "NIGHT", "DAWN", "DUSK"] = "DAY"
+    time_of_day: Literal["白天", "夜晚", "黎明", "黄昏"] = "白天"
     setting_detail: str = ""
 
 

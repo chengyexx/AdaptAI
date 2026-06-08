@@ -10,7 +10,7 @@ class DeepSeekAdapter:
     """DeepSeek API 适配器，支持流式和非流式调用"""
 
     model_name: str
-    context_window: int = 1_000_000
+    context_window: int = 128_000
 
     def __init__(self, api_key: str, model: str = "deepseek-v4-pro"):
         if not api_key:
