@@ -311,7 +311,7 @@ class ScoutMapReducePipeline(BasePipeline):
             "剧本标题": state.artifacts.chapters[0].get("title", "未命名") if state.artifacts.chapters else "未命名",
             "原著作者": "",
             "转换日期": datetime.now(UTC).strftime("%Y-%m-%d"),
-            "角色表": state.artifacts.characters,
+            "角色表": self._localize_characters(state.artifacts.characters),
             "篇章结构": [{
                 "篇章": b["title"],
                 "起始场景": f"s{b['scene_start'] + 1}",
@@ -373,6 +373,54 @@ class ScoutMapReducePipeline(BasePipeline):
             await self._push_error(tid, "validator", "; ".join(validation.get("errors", [])))
 
         return state
+
+    # ═══════════════════════════════════════════════════════
+    # 角色表中文化
+    # ═══════════════════════════════════════════════════════
+
+    # 中英文枚举映射表
+    _ROLE_MAP = {
+        "protagonist": "主角", "antagonist": "反派",
+        "supporting": "配角", "minor": "龙套", "cameo": "客串",
+    }
+    _RELATION_MAP = {
+        "family": "家人", "friend": "朋友", "rival": "对手",
+        "romantic": "恋人", "mentor_student": "师徒",
+        "colleague": "同事", "enemy": "敌人", "other": "其他",
+        "subordinate": "下属", "mentor": "导师",
+        "potential_opponent": "潜在对手", "potential_ally": "潜在盟友",
+        "potential_love_interest": "潜在恋爱对象",
+    }
+
+    @staticmethod
+    def _localize_characters(characters: list[dict]) -> list[dict]:
+        """将角色表 key 和枚举值转为纯中文，方便人类阅读"""
+        localized = []
+        for char in characters:
+            desc = char.get("description", {}) or {}
+            localized.append({
+                "编号": char.get("id", ""),
+                "姓名": char.get("name", ""),
+                "别名": char.get("aliases", []),
+                "外貌": desc.get("physical", ""),
+                "性格": desc.get("personality", ""),
+                "角色身份": ScoutMapReducePipeline._ROLE_MAP.get(
+                    desc.get("role", ""), desc.get("role", "")
+                ),
+                "重要度": char.get("importance", ""),
+                "关系": [
+                    {
+                        "关联角色": r.get("target_id", ""),
+                        "关系": ScoutMapReducePipeline._RELATION_MAP.get(
+                            r.get("type", ""), r.get("type", "")
+                        ),
+                        "说明": r.get("note", ""),
+                    }
+                    for r in char.get("relationships", [])
+                ],
+                "首次出场": char.get("first_appearance", ""),
+            })
+        return localized
 
     @staticmethod
     def _slice_chapters(chapters: list) -> list[tuple[str, str, int]]:
