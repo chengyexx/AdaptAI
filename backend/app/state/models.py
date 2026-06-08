@@ -45,6 +45,7 @@ class Artifacts:
     scenes: list = field(default_factory=list)       # [{scene_id, ...}]
     script_yaml: str | None = None                   # 最终剧本 YAML
     adaptation_notes: list = field(default_factory=list)
+    chapter_boundaries: list = field(default_factory=list)  # [{title, scene_start, chapter_idx}] — 篇章边界
 
 
 @dataclass

@@ -115,6 +115,7 @@ class SQLiteStateStore(StateRepository):
             scenes=artifacts_dict.get("scenes", []),
             script_yaml=artifacts_dict.get("script_yaml"),
             adaptation_notes=artifacts_dict.get("adaptation_notes", []),
+            chapter_boundaries=artifacts_dict.get("chapter_boundaries", []),
         )
         pipeline_meta = PipelineMeta(
             current_agent=pipeline_dict.get("current_agent", ""),

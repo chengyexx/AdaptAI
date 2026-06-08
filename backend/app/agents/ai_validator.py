@@ -10,24 +10,30 @@ from .validator import Validator
 
 AI_VALIDATOR_SYSTEM_PROMPT = """你是一位资深的剧本审校专家和文学评论家。
 
-你的任务是审查一份从小说改编的剧本草稿，从以下维度进行深度分析：
+你的任务是审查一份从小说改编的剧本草稿，从以下维度进行深度分析。
+
+## 重要提示：多篇章/多叙事弧
+
+本剧本可能由多个独立的篇章或叙事弧组成（例如：同人续写 + 原文章节选段、不同时间线的章节拼接等）。
+不同篇章之间存在时间线跳跃、角色状态变化是**正常的**，不应被视为逻辑矛盾。
+审查时请将每个篇章视为独立单元，仅在**同一篇章内部**的一致性出现严重问题时标记 critical。
 
 ## 审查维度
 
 1. **角色一致性 (Character Consistency)**
-   - 各角色行为是否符合之前设定的人物性格和背景
-   - 是否存在人物性格突变（OOC - Out Of Character）
-   - 角色关系网是否自洽
+   - 同一篇章内角色行为是否符合设定
+   - 存在人物性格突变（OOC）时，区分"刻意改编"与"无意失误"
+   - 角色关系网在同一篇章内保持自洽即可
 
 2. **叙事逻辑 (Narrative Logic)**
-   - 场景之间的因果链条是否完整
+   - 同一篇章内场景之间的因果链条是否完整
    - 关键剧情转折是否有铺垫
-   - 是否存在时间线矛盾
+   - 跨篇章时间线跳跃不属于逻辑矛盾
 
 3. **冲突设计 (Conflict Design)**
    - 核心戏剧冲突是否延续了原著的张力
    - 次要冲突是否服务于主线
-   - 冲突升级的节秦是否合理
+   - 冲突升级的节奏是否合理
 
 4. **改编质量 (Adaptation Quality)**
    - 原著精髓是否被保留
@@ -56,12 +62,15 @@ AI_VALIDATOR_SYSTEM_PROMPT = """你是一位资深的剧本审校专家和文学
 
 ## 判定标准
 
-- passed=true:  所有 critical 级别问题已解决，整体改编质量可接受
-- passed=false: 存在 critical 级别问题，或 adaptation_quality 自评低于 5/10
-- 即使 passed=false，也必须给出具体的修改建议
+- critical 仅用于：同一篇章内角色名字错误、同一场景内对话归属明显混乱、Schema 结构化缺陷导致无法拍摄
+- 跨篇章的时间线跳跃、角色状态变化 → 使用 minor 级别标记即可
+- 改编风格选择（如角色台词直白程度）→ 使用建议形式，不标记为问题
+- passed=false 仅在最严重的情况下使用（如整篇无法构成可用剧本）
 """
 
 AI_VALIDATOR_USER_PROMPT = """请审查以下小说改编的剧本草稿：
+
+{chapter_hint}
 
 ## 原著角色信息
 {characters_info}
@@ -75,7 +84,8 @@ AI_VALIDATOR_USER_PROMPT = """请审查以下小说改编的剧本草稿：
 ## 改编备注
 {adaptation_notes}
 
-请从角色一致性、叙事逻辑、冲突设计、改编质量四个维度进行深度审查。使用 CoT 思维链展示你的推理过程。"""
+请从角色一致性、叙事逻辑、冲突设计、改编质量四个维度进行深度审查。使用 CoT 思维链展示你的推理过程。
+注意：本剧本可能由多个独立篇章组成，跨篇章的时间线/角色状态差异是正常的，仅在篇章内部的一致性出现严重问题时才标记 critical。"""
 
 
 class AIValidator:
@@ -101,8 +111,12 @@ class AIValidator:
         script_yaml: str,
         adaptation_notes: list,
         reasoner_adapter,
+        chapter_hint: str = "",
     ) -> dict:
         """执行双阶段校验
+
+        Args:
+            chapter_hint: 篇章边界提示，如 "第1-5场景来自「同人续写」，第6-20场景来自「第7章」..."
 
         Returns:
             {
@@ -125,6 +139,7 @@ class AIValidator:
             script_yaml,
             adaptation_notes,
             reasoner_adapter,
+            chapter_hint,
         )
 
         # ── 合并结果 ──
@@ -143,11 +158,19 @@ class AIValidator:
             for note in stage2.get("adaptation_notes", []):
                 all_warnings.append(f"[Adaptation] {note}")
 
-        # 综合判断: 规则引擎通过 + R1 通过 + R1 置信度达标
+        # 综合判断: 仅规则引擎决定是否阻断，R1 为建议性审计
+        # 设计理念：R1 的深度推理是有价值的参考，但不应阻止剧本交付。
+        # 跨篇章时间线跳跃、改编风格选择等主观判断由人类在 HITL 阶段审阅。
+        final_passed = stage1.get("passed", True)
+
+        # R1 结果仅用于后验参考（即使 R1 判定不通过也不阻断）
         r1_passed = stage2.get("passed", True) if stage2 else True
         r1_confidence = stage2.get("overall_confidence", 0.5) if stage2 else 0.5
-
-        final_passed = stage1.get("passed", True) and r1_passed and r1_confidence >= 0.4
+        if not r1_passed or r1_confidence < 0.4:
+            all_warnings.append(
+                f"[R1审计] R1 判定{'未通过' if not r1_passed else '置信度偏低'} "
+                f"(置信度={r1_confidence:.0%})，请人工审阅"
+            )
 
         return {
             "passed": final_passed,
@@ -165,9 +188,11 @@ class AIValidator:
         script_yaml: str,
         adaptation_notes: list,
         reasoner_adapter,
+        chapter_hint: str = "",
     ) -> dict | None:
         """调用 R1 Reasoner 进行深度推理审查"""
         user_prompt = AI_VALIDATOR_USER_PROMPT.format(
+            chapter_hint=chapter_hint if chapter_hint else "（本剧本为单一连续篇章）",
             characters_info=characters_info[:self.MAX_CHAR_INFO],
             scenes_info=scenes_info[:self.MAX_SCENE_INFO],
             script_yaml=script_yaml[:self.MAX_SCRIPT_YAML] if script_yaml else "（尚未生成）",

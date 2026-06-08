@@ -199,7 +199,11 @@ class ScoutMapReducePipeline(BasePipeline):
         all_scenes = []
         total_chunks = len(chunks)
 
-        for idx, (chunk_label, chunk_text) in enumerate(chunks):
+        # 追踪篇章边界：记录每个原始章节对应哪些场景编号范围
+        chapter_boundaries: list[dict] = []  # [{title, scene_start_idx}, ...]
+        _last_chapter_idx = None
+
+        for idx, (chunk_label, chunk_text, chapter_idx) in enumerate(chunks):
             chunk_progress = 0.2 + (0.6 * (idx + 1) / max(total_chunks, 1))
             await self._push_progress(tid, "map_agent", chunk_progress)
 
@@ -216,6 +220,18 @@ class ScoutMapReducePipeline(BasePipeline):
 
             if result.success:
                 scenes = result.output.get("scenes", [])
+                # 追踪篇章边界：新章节开始时记录
+                if chapter_idx != _last_chapter_idx:
+                    chapter_boundaries.append({
+                        "title": (
+                            state.artifacts.chapters[chapter_idx - 1].get("title", f"第{chapter_idx}章")
+                            if 1 <= chapter_idx <= len(state.artifacts.chapters)
+                            else f"第{chapter_idx}章"
+                        ),
+                        "scene_start": len(all_scenes),  # 0-based, before extend
+                        "chapter_idx": chapter_idx,
+                    })
+                    _last_chapter_idx = chapter_idx
                 all_scenes.extend(scenes)
                 if total_chunks > 1:
                     await self._log(tid, "success", f"{chunk_label}: +{len(scenes)} 场景")
@@ -231,6 +247,9 @@ class ScoutMapReducePipeline(BasePipeline):
         # 全局场景编号重编排：每个 chunk 独立从 s1 编号，合并后统一重排
         for i, scene in enumerate(all_scenes):
             scene["场景编号"] = f"s{i + 1}"
+
+        # 存储篇章边界信息供 Reduce 阶段使用
+        state.artifacts.chapter_boundaries = chapter_boundaries
 
         state.artifacts.scenes = all_scenes
         state.pipeline_state.progress = 0.8
@@ -262,6 +281,23 @@ class ScoutMapReducePipeline(BasePipeline):
 
         all_scenes = state.artifacts.scenes
 
+        # 构建篇章边界提示（供 R1 理解多篇章结构）
+        boundaries = state.artifacts.chapter_boundaries
+        chapter_hint_lines = ["## 篇章结构说明"]
+        if len(boundaries) <= 1:
+            chapter_hint_lines.append("本剧本为单一连续篇章。")
+        else:
+            chapter_hint_lines.append(f"本剧本包含 {len(boundaries)} 个独立篇章，各篇章之间可能存在时间线跳跃和角色状态变化，这是正常的：")
+            for i, b in enumerate(boundaries):
+                start = b["scene_start"]
+                end_scene_idx = boundaries[i + 1]["scene_start"] if i + 1 < len(boundaries) else len(all_scenes)
+                chapter_hint_lines.append(
+                    f"  篇章{i + 1}「{b['title']}」: 场景 s{start + 1} 至 s{end_scene_idx}"
+                    f"（共 {end_scene_idx - start} 个场景）"
+                )
+            chapter_hint_lines.append("跨篇章的时间线矛盾、角色状态变化不应被标记为 critical。")
+        chapter_hint = "\n".join(chapter_hint_lines)
+
         # 生成最终 YAML（含元数据+统计）
         from datetime import datetime, UTC
         import yaml
@@ -276,6 +312,10 @@ class ScoutMapReducePipeline(BasePipeline):
             "原著作者": "",
             "转换日期": datetime.now(UTC).strftime("%Y-%m-%d"),
             "角色表": state.artifacts.characters,
+            "篇章结构": [{
+                "篇章": b["title"],
+                "起始场景": f"s{b['scene_start'] + 1}",
+            } for b in boundaries] if len(boundaries) > 1 else [],
             "场景列表": all_scenes,
             "改编说明": state.artifacts.adaptation_notes,
             "统计信息": {
@@ -311,6 +351,7 @@ class ScoutMapReducePipeline(BasePipeline):
             script_yaml=state.artifacts.script_yaml,
             adaptation_notes=state.artifacts.adaptation_notes,
             reasoner_adapter=reasoner,
+            chapter_hint=chapter_hint,
         )
 
         state.artifacts.adaptation_notes.extend(validation.get("warnings", []))
@@ -334,24 +375,30 @@ class ScoutMapReducePipeline(BasePipeline):
         return state
 
     @staticmethod
-    def _slice_chapters(chapters: list) -> list[tuple[str, str]]:
-        chunks = []
+    def _slice_chapters(chapters: list) -> list[tuple[str, str, int]]:
+        """切片章节，返回 (标题, 文本, 章节序号)
+
+        章节序号 1-based，对应原始 chapters 列表中的 index 字段。
+        用于在 Reduce 阶段追踪篇章边界，向 R1 提供跨篇章上下文。
+        """
+        chunks: list[tuple[str, str, int]] = []
         for chapter in chapters:
             text = chapter.get("text", "")
             title = chapter.get("title", f"第{chapter.get('index', '?')}章")
+            chapter_idx = chapter.get("index", 1)  # 1-based
             if len(text) <= 4000:
-                chunks.append((title, text))
+                chunks.append((title, text, chapter_idx))
             else:
                 paragraphs = text.split("\n")
                 current = ""
                 part = 1
                 for para in paragraphs:
                     if len(current) + len(para) > 2000 and current:
-                        chunks.append((f"{title} (第{part}部分)", current.strip()))
+                        chunks.append((f"{title} (第{part}部分)", current.strip(), chapter_idx))
                         part += 1
                         current = para
                     else:
                         current += "\n" + para if current else para
                 if current.strip():
-                    chunks.append((f"{title} (第{part}部分)", current.strip()))
+                    chunks.append((f"{title} (第{part}部分)", current.strip(), chapter_idx))
         return chunks
