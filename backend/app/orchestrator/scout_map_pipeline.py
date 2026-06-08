@@ -228,6 +228,10 @@ class ScoutMapReducePipeline(BasePipeline):
             state.pipeline_state.progress = chunk_progress
             await self._persist(state)
 
+        # 全局场景编号重编排：每个 chunk 独立从 s1 编号，合并后统一重排
+        for i, scene in enumerate(all_scenes):
+            scene["场景编号"] = f"s{i + 1}"
+
         state.artifacts.scenes = all_scenes
         state.pipeline_state.progress = 0.8
         await self._persist(state)
