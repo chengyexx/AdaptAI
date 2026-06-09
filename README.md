@@ -146,4 +146,6 @@ pytest -v
 **状态可恢复。** 所有 Pipeline 状态落盘持久化。浏览器关了、后端崩了，重开就能从断点继续。
 
 **中文原生。** 字段名、枚举值、校验信息全部中文。LLM Prompt、Pydantic 模型、前端渲染、YAML 输出统一使用同一套命名，不存在翻译映射层。
-【七牛云 x XENGINEER 暑期实训营-第三批次-题目三】 https://www.bilibili.com/video/BV16XE76vEYt/?share_source=copy_web&vd_source=dbbde7a85366f1693f082df34280afcd
+
+**演示视频**：
+[点击这里观看  AdaptAI  完整功能介绍](【七牛云 x XENGINEER 暑期实训营-第三批次-题目三】 https://www.bilibili.com/video/BV16XE76vEYt/?share_source=copy_web&vd_source=dbbde7a85366f1693f082df34280afcd)
